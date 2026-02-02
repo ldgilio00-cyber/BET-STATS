@@ -1,6 +1,6 @@
 /* sw.js — Service Worker offline-first (app shell cache) */
 
-const CACHE_NAME = "ts-cache-v6";
+const CACHE_NAME = "ts-cache-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
