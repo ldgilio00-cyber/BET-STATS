@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f19" />
+
+  <title>Tracker Scommesse</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">TS</div>
+      <div class="brand-text">
+        <div class="brand-title">Tracker Scommesse</div>
+        <div class="brand-sub">Offline PWA • Bookmakers • Stats</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-btn active" data-nav="dashboard" title="Dashboard">Dashboard</button>
+      <button class="nav-btn" data-nav="bets" title="Bets">Bets</button>
+      <button class="nav-btn" data-nav="bookmakers" title="Bookmakers">Bookmakers</button>
+      <button class="nav-btn" data-nav="stats" title="Statistiche">Stats</button>
+      <button class="nav-btn" data-nav="settings" title="Impostazioni">Impostazioni</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- Views: app.js mostra/nasconde in base all'hash -->
+    <section id="view-dashboard"></section>
+    <section id="view-bets" style="display:none;"></section>
+    <section id="view-bookmakers" style="display:none;"></section>
+    <section id="view-stats" style="display:none;"></section>
+    <section id="view-settings" style="display:none;"></section>
+
+    <noscript>
+      <div class="card">
+        <h2>JavaScript disattivato</h2>
+        <p>Per usare questa PWA devi abilitare JavaScript.</p>
+      </div>
+    </noscript>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© <span id="y"></span> Tracker Scommesse</span>
+      <span class="dot">•</span>
+      <span>Offline-first</span>
+      <span class="dot">•</span>
+      <a class="link" href="#settings">Backup</a>
+    </div>
+  </footer>
+
+  <script>
+    // anno footer
+    document.getElementById("y").textContent = new Date().getFullYear();
+    // view default
+    if (!location.hash) location.hash = "#dashboard";
+  </script>
+
+  <script src="./app.js"></script>
+</body>
+</html>
