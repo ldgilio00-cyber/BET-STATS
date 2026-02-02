@@ -1,15 +1,15 @@
 /* app.js — PWA Tracker Scommesse (offline-first) con BOOKMAKERS + bankroll separato
    Versione storage: ts_v6 (migra da ts_v5/precedenti)
 
-   ✅ Cosa include (core logico + render base se gli ID esistono in index.html):
+   ✅ Include:
    - Bookmakers con budget separato + disponibile per book
    - Bets con bookmaker obbligatorio
    - Stake scalato SOLO dal book selezionato quando la bet è “In corso”
    - Chiusura: Vinta/Persa/Void/Cashout con rientro sullo stesso book
    - Stake limitato al disponibile (mai negativo)
    - Disponibile totale = somma disponibili book
-   - ROI calcolabile sul bankroll iniziale (non sul puntato) + altre stats base
-   - Export/Import JSON (se bottoni/inputs esistono)
+   - ROI calcolabile sul bankroll iniziale (non sul puntato) + stats base
+   - Export/Import JSON
 */
 
 /* -------------------- PWA offline -------------------- */
@@ -27,9 +27,6 @@ const n2 = (x) => {
   if (!Number.isFinite(v)) return 0;
   return Math.round((v + Number.EPSILON) * 100) / 100;
 };
-
-const money = (n, currency = "€") => `${currency} ${n2(n).toFixed(2)}`;
-const pct = (n) => `${n2(n).toFixed(2)}%`;
 
 function safeParse(raw) {
   try { return JSON.parse(raw); } catch { return null; }
@@ -59,6 +56,18 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+/* ---- Money/Percent format (it-IT) + NBSP dopo valuta ---- */
+function fmt2(n) {
+  const val = n2(n);
+  return new Intl.NumberFormat("it-IT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val);
+}
+
+const money = (n, currency = "€") => `${currency}\u00A0${fmt2(n)}`;
+const pct = (n) => `${fmt2(n)}%`;
 
 /* -------------------- Storage + State -------------------- */
 const KEY = "ts_v6";
@@ -152,15 +161,13 @@ function normalizeBet(b) {
     (resultRaw === "lose" || resultRaw === "persa") ? "lose" :
     (resultRaw === "void") ? "void" :
     (resultRaw === "cashout") ? "cashout" :
-    (status === "closed" ? "win" : ""); // se chiusa ma non specificato, default (poi calcoli coerenti)
+    (status === "closed" ? "win" : "");
 
   const openedAt = b.openedAt || b.date || toISODateOnly();
   const closedAt = b.closedAt || (status === "closed" ? (b.date || toISODateOnly()) : "");
 
   const stake = n2(b.stake ?? b.puntata ?? 0);
   const odds = n2(b.odds ?? b.quota ?? 0);
-
-  // cashoutReturn = quanto è rientrato sul book (se cashout)
   const cashoutReturn = n2(b.cashoutReturn ?? b.cashout ?? 0);
 
   const typeRaw = String(b.type || b.tipo || "singola").toLowerCase();
@@ -171,8 +178,9 @@ function normalizeBet(b) {
     (typeRaw === "back") ? "back" :
     "singola";
 
-  const tags = Array.isArray(b.tags) ? b.tags.map(String) :
-    String(b.tags || "").split(",").map(s => s.trim()).filter(Boolean);
+  const tags = Array.isArray(b.tags)
+    ? b.tags.map(String)
+    : String(b.tags || "").split(",").map(s => s.trim()).filter(Boolean);
 
   const legs = Array.isArray(b.legs) ? b.legs.map((l) => ({
     event: String(l.event || ""),
@@ -191,7 +199,7 @@ function normalizeBet(b) {
     stake,
     odds,
     status,
-    result, // 'win'|'lose'|'void'|'cashout'|'' (se open)
+    result,
     cashoutReturn,
     note: String(b.note || ""),
     tags,
@@ -204,7 +212,6 @@ function normalizeBet(b) {
 }
 
 function loadState() {
-  // prova la key nuova
   const raw = localStorage.getItem(KEY);
   if (raw) {
     const s = normalizeState(safeParse(raw));
@@ -213,7 +220,6 @@ function loadState() {
     return s;
   }
 
-  // prova migrazione da chiavi vecchie
   for (const k of OLD_KEYS) {
     const oldRaw = localStorage.getItem(k);
     if (!oldRaw) continue;
@@ -223,13 +229,10 @@ function loadState() {
     const s = normalizeState(migrated);
     recomputeAllBalances(s);
     saveState(s);
-
-    // non elimino i vecchi per sicurezza (puoi farlo tu se vuoi)
     return s;
   }
 
   const fresh = normalizeState(structuredClone(DEFAULT));
-  // se non ci sono bookmaker, creane uno "Main" con budgetStart (0)
   ensureAtLeastOneBookmaker(fresh);
   recomputeAllBalances(fresh);
   saveState(fresh);
@@ -245,38 +248,30 @@ function saveState(s = STATE) {
 }
 
 function migrateToV6(old) {
-  // Migrazione tollerante: se vecchio formato aveva {budgetStart, bets:[]}
   const base = structuredClone(DEFAULT);
-
   if (!old || typeof old !== "object") return base;
 
-  // porta settings se esistono
   if (old.settings && typeof old.settings === "object") {
     base.settings = { ...base.settings, ...old.settings };
   }
 
-  // bankroll iniziale (vecchio)
   base.budgetStart = n2(old.budgetStart ?? old.bankrollStart ?? old.budget ?? 0);
 
-  // Se già esistono bookmakers nel vecchio, copiali
   if (Array.isArray(old.bookmakers) && old.bookmakers.length) {
     base.bookmakers = old.bookmakers;
     base.transactions = Array.isArray(old.transactions) ? old.transactions : [];
   } else {
-    // Crea bookmaker "Main" col budgetStart vecchio
     base.bookmakers = [{
       id: uid(),
       name: "Main",
       budgetStart: base.budgetStart,
-      available: base.budgetStart, // verrà ricalcolato da recomputeAllBalances
+      available: base.budgetStart,
       createdAt: isoNow(),
     }];
   }
 
-  // Tipsters
   if (Array.isArray(old.tipsters)) base.tipsters = old.tipsters;
 
-  // Bets: se nel vecchio non c’era bookmakerId, assegna al primo book
   const fallbackBookId = (base.bookmakers[0] && base.bookmakers[0].id) ? base.bookmakers[0].id : "";
   if (Array.isArray(old.bets)) {
     base.bets = old.bets.map((b) => ({
@@ -301,36 +296,22 @@ function ensureAtLeastOneBookmaker(s = STATE) {
 }
 
 /* -------------------- Bankroll engine -------------------- */
-/* Regola eventi:
-   - Bet OPEN: scala stake dal book (limitata al disponibile)
-   - Bet CLOSE:
-       win  -> rientra stake*odds
-       lose -> niente (stake già perso)
-       void -> rientra stake
-       cashout -> rientra cashoutReturn (se 0, default stake)
-   Nota: se una bet viene creata già chiusa, la modelliamo come open+close nello stesso giorno (netto coerente)
-*/
 function recomputeAllBalances(s = STATE) {
   ensureAtLeastOneBookmaker(s);
 
-  // reset disponibili ai budgetStart
   const map = new Map();
   for (const b of s.bookmakers) {
     map.set(b.id, { ...b, available: n2(b.budgetStart) });
   }
 
-  // applica transazioni (deposit/withdraw/adjust)
   for (const t of s.transactions) {
     const bk = map.get(t.bookmakerId);
     if (!bk) continue;
     if (t.type === "deposit") bk.available = n2(bk.available + t.amount);
     else if (t.type === "withdraw") bk.available = n2(bk.available - t.amount);
     else if (t.type === "adjust") bk.available = n2(bk.available + t.amount);
-    // mai negativo? (opzionale) — qui lo permetto, ma puoi clampare:
-    // bk.available = Math.max(0, bk.available);
   }
 
-  // prepara eventi bet
   const events = [];
   for (const bet of s.bets) {
     const opened = bet.openedAt || bet.createdAt || toISODateOnly();
@@ -346,7 +327,6 @@ function recomputeAllBalances(s = STATE) {
 
   const byId = new Map(s.bets.map((b) => [b.id, b]));
 
-  // applica eventi
   for (const ev of events) {
     const bet = byId.get(ev.betId);
     if (!bet) continue;
@@ -354,12 +334,10 @@ function recomputeAllBalances(s = STATE) {
     if (!bk) continue;
 
     if (ev.kind === "open") {
-      // scala stake limitato al disponibile
       const stake = Math.max(0, n2(bet.stake));
       const used = clamp(0, stake, bk.available);
       bk.available = n2(bk.available - used);
-      // salva anche stake effettivo usato (se vuoi) — NON forzo qui per non cambiare storico
-    } else if (ev.kind === "close") {
+    } else {
       const stake = Math.max(0, n2(bet.stake));
       const odds = Math.max(0, n2(bet.odds));
       const r = bet.result;
@@ -371,22 +349,17 @@ function recomputeAllBalances(s = STATE) {
       } else if (r === "cashout") {
         const ret = n2(bet.cashoutReturn || 0) || stake;
         bk.available = n2(bk.available + ret);
-      } else {
-        // lose -> niente
       }
     }
 
-    // mai negativo (hard rule richiesta per stake, non per withdraw/adjust; qui clampo comunque)
     bk.available = Math.max(0, n2(bk.available));
   }
 
-  // scrivi indietro
   s.bookmakers = Array.from(map.values()).map((b) => ({
     ...b,
     available: n2(b.available),
   }));
 
-  // aggiorna budgetStart legacy
   s.budgetStart = n2(s.bookmakers.reduce((sum, b) => sum + n2(b.budgetStart), 0));
 }
 
@@ -419,7 +392,6 @@ function updateBookmaker(bookmakerId, patch = {}) {
 }
 
 function deleteBookmaker(bookmakerId) {
-  // blocca eliminazione se usato in bets/transactions
   const usedInBets = STATE.bets.some((b) => b.bookmakerId === bookmakerId);
   const usedInTx = STATE.transactions.some((t) => t.bookmakerId === bookmakerId);
   if (usedInBets || usedInTx) {
@@ -441,7 +413,6 @@ function addBet(betInput) {
     updatedAt: isoNow(),
   });
 
-  // stake limitato al disponibile del bookmaker SE open
   const bk = STATE.bookmakers.find((b) => b.id === bet.bookmakerId);
   if (!bk) {
     alert("Bookmaker non valido.");
@@ -450,10 +421,7 @@ function addBet(betInput) {
 
   if (bet.status === "open") {
     const maxStake = n2(bk.available);
-    if (bet.stake > maxStake) bet.stake = maxStake; // no negativo, no oltre disponibile
-  } else {
-    // chiusa subito: comunque non ha senso stake oltre disponibile iniziale in quel momento,
-    // ma qui la lasciamo (recompute clampa e non va negativo)
+    if (bet.stake > maxStake) bet.stake = maxStake;
   }
 
   STATE.bets.unshift(bet);
@@ -473,12 +441,8 @@ function updateBet(betId, patch = {}) {
     updatedAt: isoNow(),
   });
 
-  // se open, limita stake al disponibile (dopo ricalcolo è complesso in-place)
-  // soluzione robusta: applico la patch e ricalcolo; poi, se lo stake causa clamp,
-  // lo porto al max disponibile teorico in quel momento facendo una stima semplice:
   const bk = STATE.bookmakers.find((b) => b.id === merged.bookmakerId);
   if (bk && merged.status === "open") {
-    // stima: disponibile corrente del book + stake precedente (perché la stiamo "sostituendo")
     const prev = STATE.bets[i];
     const prevStake = n2(prev.stake || 0);
     const estAvail = n2(bk.available + prevStake);
@@ -576,7 +540,7 @@ function getTotals() {
   };
 }
 
-/* -------------------- Minimal Router + Render (se gli elementi esistono) -------------------- */
+/* -------------------- Minimal Router + Render -------------------- */
 const VIEWS = ["dashboard", "bets", "bookmakers", "stats", "settings"];
 
 function currentView() {
@@ -589,10 +553,21 @@ function showOnly(view) {
     const el = $(`view-${v}`);
     if (el) el.style.display = (v === view) ? "block" : "none";
   }
-  // attiva nav (se esiste)
   $$("[data-nav]").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-nav") === view);
   });
+}
+
+/* ---- helper per stampare start/disponibile senza “doppioni” ---- */
+function renderBudgetLine(b, currency) {
+  const same = n2(b.available) === n2(b.budgetStart);
+  if (same) {
+    return `<div class="sub">Budget: <b>${money(b.available, currency)}</b></div>`;
+  }
+  return `
+    <div class="sub">Start: ${money(b.budgetStart, currency)}</div>
+    <div class="sub">Disponibile: <b>${money(b.available, currency)}</b></div>
+  `;
 }
 
 function renderDashboard() {
@@ -618,7 +593,7 @@ function renderDashboard() {
           <div class="row">
             <div class="col">
               <div class="title">${escapeHtml(b.name)}</div>
-              <div class="sub">Start: ${money(b.budgetStart, t.currency)}</div>
+              ${renderBudgetLine(b, t.currency)}
             </div>
             <div class="col right">
               <div class="title">${money(b.available, t.currency)}</div>
@@ -659,8 +634,7 @@ function renderBookmakers() {
           <div class="row">
             <div class="col">
               <div class="title">${escapeHtml(b.name)}</div>
-              <div class="sub">Start: ${money(b.budgetStart, t.currency)}</div>
-              <div class="sub">Disponibile: <b>${money(b.available, t.currency)}</b></div>
+              ${renderBudgetLine(b, t.currency)}
             </div>
             <div class="col right">
               <button data-edit-bm="${escapeHtml(b.id)}">Modifica</button>
@@ -672,7 +646,6 @@ function renderBookmakers() {
     </div>
   `;
 
-  // bind add
   const f = $("form-add-bookmaker");
   if (f) {
     f.onsubmit = (e) => {
@@ -686,7 +659,6 @@ function renderBookmakers() {
     };
   }
 
-  // bind edit/delete
   $$("[data-del-bm]").forEach((btn) => {
     btn.onclick = () => {
       const id = btn.getAttribute("data-del-bm");
@@ -701,11 +673,17 @@ function renderBookmakers() {
       if (!id) return;
       const bm = STATE.bookmakers.find((x) => x.id === id);
       if (!bm) return;
+
       const newName = prompt("Nome bookmaker:", bm.name);
       if (newName == null) return;
+
       const newStartRaw = prompt("Budget iniziale:", String(bm.budgetStart));
       if (newStartRaw == null) return;
-      updateBookmaker(id, { name: newName.trim() || bm.name, budgetStart: Number(newStartRaw) });
+
+      updateBookmaker(id, {
+        name: newName.trim() || bm.name,
+        budgetStart: Number(newStartRaw),
+      });
     };
   });
 }
@@ -715,7 +693,9 @@ function renderBets() {
   if (!el) return;
 
   const t = getTotals();
-  const booksOptions = STATE.bookmakers.map((b) => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`).join("");
+  const booksOptions = STATE.bookmakers
+    .map((b) => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`)
+    .join("");
 
   el.innerHTML = `
     <div class="card">
@@ -800,6 +780,7 @@ function renderBets() {
   const btnAll = $("tab-all");
   const btnOpen = $("tab-open");
   const btnClosed = $("tab-closed");
+
   function setTab(tname) {
     filter = tname;
     if (btnAll) btnAll.classList.toggle("active", tname === "all");
@@ -807,6 +788,7 @@ function renderBets() {
     if (btnClosed) btnClosed.classList.toggle("active", tname === "closed");
     paintList();
   }
+
   if (btnAll) btnAll.onclick = () => setTab("all");
   if (btnOpen) btnOpen.onclick = () => setTab("open");
   if (btnClosed) btnClosed.onclick = () => setTab("closed");
@@ -821,10 +803,8 @@ function renderBets() {
       if (!bk) return;
 
       const status = $("bet-status")?.value || "open";
-      let stake = Number($("bet-stake")?.value || 0);
-      stake = n2(stake);
+      let stake = n2(Number($("bet-stake")?.value || 0));
 
-      // stake limitato al disponibile se open
       if (status === "open") stake = clamp(0, stake, bk.available);
 
       const bet = {
@@ -843,7 +823,6 @@ function renderBets() {
         note: ($("bet-note")?.value || "").trim(),
       };
 
-      // se chiusa e cashout senza rientro, default = stake
       if (bet.status === "closed" && bet.result === "cashout") {
         const r = n2(bet.cashoutReturn || 0);
         bet.cashoutReturn = r > 0 ? r : stake;
@@ -851,7 +830,6 @@ function renderBets() {
 
       addBet(bet);
 
-      // reset campi rapidi
       if ($("bet-stake")) $("bet-stake").value = "";
       if ($("bet-odds")) $("bet-odds").value = "";
       if ($("bet-cashout")) $("bet-cashout").value = "";
@@ -889,7 +867,7 @@ function renderBets() {
             </div>
             <div class="sub">
               Stake: <b>${money(b.stake, t.currency)}</b>
-              &nbsp;•&nbsp; Quota: <b>${n2(b.odds).toFixed(2)}</b>
+              &nbsp;•&nbsp; Quota: <b>${fmt2(b.odds)}</b>
               &nbsp;•&nbsp; Stato: <b>${escapeHtml(resTxt)}</b>
               ${b.sport ? `&nbsp;•&nbsp; ${escapeHtml(b.sport)}` : ""}
               ${b.competition ? `&nbsp;•&nbsp; ${escapeHtml(b.competition)}` : ""}
@@ -936,11 +914,16 @@ function renderBets() {
         const newStatus = prompt("Stato (open/closed):", b.status);
         if (newStatus == null) return;
 
+        const newBook = prompt("Bookmaker ID (lascia vuoto per non cambiare):", "");
+        // NB: volutamente semplice — se vuoi mettiamo una modal vera dopo
+
         let patch = {
           stake: Number(newStake),
           odds: Number(newOdds),
           status: (String(newStatus).toLowerCase() === "closed") ? "closed" : "open",
         };
+
+        if (newBook && newBook.trim()) patch.bookmakerId = newBook.trim();
 
         if (patch.status === "closed") {
           const newResult = prompt("Esito (win/lose/void/cashout):", b.result || "win");
@@ -998,7 +981,7 @@ function renderStats() {
             <div class="row">
               <div class="col">
                 <div class="title">${escapeHtml(b.name)}</div>
-                <div class="sub">Start: ${money(b.budgetStart, t.currency)} • Disponibile: <b>${money(b.available, t.currency)}</b></div>
+                ${renderBudgetLine(b, t.currency)}
               </div>
               <div class="col right">
                 <div class="title">${money(profit, t.currency)}</div>
@@ -1151,4 +1134,3 @@ window.addEventListener("hashchange", renderApp);
 bindNav();
 recomputeAllBalances(STATE);
 renderApp();
-
