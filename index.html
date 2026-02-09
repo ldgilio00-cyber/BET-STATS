@@ -53,7 +53,7 @@
               <div class="miniValue" id="homeSessions">0</div>
             </div>
             <div class="mini">
-              <div class="miniLabel">Piano</div>
+              <div class="miniLabel">Scheda attiva</div>
               <div class="miniValue" id="homePlanName">—</div>
             </div>
           </div>
@@ -62,7 +62,7 @@
         <div class="card">
           <h2>Azioni rapide</h2>
           <div class="actions">
-            <button class="btn" data-jump="workout">Scheda</button>
+            <button class="btn" data-jump="workout">Allenamento</button>
             <button class="btn" data-jump="diet">Dieta</button>
             <button class="btn" id="btnGrocery">Lista spesa</button>
             <button class="btn" id="btnBackup">Backup</button>
@@ -76,14 +76,18 @@
       <div class="grid">
         <div class="card">
           <div class="cardHead">
-            <h2>Scheda</h2>
+            <h2>Allenamento</h2>
             <div class="row">
-              <button class="btn" id="btnLoadDefault">Carica scheda 4gg</button>
-              <button class="btn primary" id="btnOpenPlanEditor">Modifica / Crea scheda</button>
+              <button class="btn" id="btnLoadDefaultPlan">Carica scheda 4gg</button>
+              <button class="btn primary" id="btnOpenPlans">Le mie schede</button>
             </div>
           </div>
 
           <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Scheda attiva</span>
+              <select id="activePlanSelect"></select>
+            </label>
             <label class="field">
               <span>Giorno</span>
               <select id="daySelect"></select>
@@ -102,15 +106,36 @@
       </div>
     </section>
 
+    <!-- LIBRERIA SCHEDE -->
+    <section class="view hidden" id="view-plans">
+      <div class="grid">
+        <div class="card">
+          <div class="cardHead">
+            <h2>Le mie schede</h2>
+            <div class="row">
+              <button class="btn" id="btnPlansBack">← Indietro</button>
+              <button class="btn primary" id="btnPlanNew">+ Nuova scheda</button>
+            </div>
+          </div>
+          <div id="plansList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Tip</h2>
+          <div class="tip">Crea più schede (es. Ipertrofia, Forza, Richiamo). Poi seleziona quella attiva da “Allenamento”.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- EDITOR SCHEDA -->
     <section class="view hidden" id="view-planedit">
       <div class="grid">
         <div class="card">
           <div class="cardHead">
-            <h2>Editor Scheda</h2>
+            <h2 id="planEditTitle">Editor Scheda</h2>
             <div class="row">
-              <button class="btn" id="btnPlanBack">← Indietro</button>
-              <button class="btn danger" id="btnPlanReset">Reset scheda</button>
+              <button class="btn" id="btnPlanEditBack">← Schede</button>
+              <button class="btn danger" id="btnPlanDelete">Elimina scheda</button>
             </div>
           </div>
 
@@ -119,28 +144,29 @@
               <span>Nome scheda</span>
               <input id="planName" placeholder="Es. Ipertrofia 4 giorni" />
             </label>
-            <button class="btn primary" id="btnPlanSaveName">Salva nome</button>
+            <button class="btn primary" id="btnPlanSaveName">Salva</button>
           </div>
 
           <div class="row">
             <label class="field" style="flex:1; min-width:220px">
-              <span>Nuovo giorno (nome)</span>
+              <span>Aggiungi giorno</span>
               <input id="newDayName" placeholder="Es. Lunedì – Upper" />
             </label>
-            <button class="btn primary" id="btnAddDay">Aggiungi giorno</button>
+            <button class="btn primary" id="btnAddDay">Aggiungi</button>
           </div>
 
           <div id="planDaysList" class="list"></div>
         </div>
 
         <div class="card">
-          <h2>Modifica esercizi del giorno</h2>
+          <h2>Esercizi del giorno</h2>
 
           <div class="row">
             <label class="field" style="min-width:240px; flex:1">
               <span>Giorno selezionato</span>
               <select id="planDaySelect"></select>
             </label>
+            <button class="btn" id="btnDuplicateDay">Duplica giorno</button>
           </div>
 
           <div class="row">
@@ -160,7 +186,6 @@
 
           <div class="row">
             <button class="btn primary" id="btnAddExercise">Aggiungi esercizio</button>
-            <button class="btn" id="btnDuplicateDay">Duplica giorno</button>
           </div>
 
           <div id="planExercisesList" class="list"></div>
@@ -173,15 +198,19 @@
       <div class="grid">
         <div class="card">
           <div class="cardHead">
-            <h2>Piano dieta</h2>
+            <h2>Dieta</h2>
             <div class="row">
-              <button class="btn" id="btnLoadDietDefault">Carica dieta</button>
-              <button class="btn primary" id="btnOpenDietEditor">Modifica / Crea dieta</button>
+              <button class="btn" id="btnLoadDefaultDiet">Carica dieta base</button>
+              <button class="btn primary" id="btnOpenDiets">Le mie diete</button>
               <button class="btn" id="btnGenerateGrocery">Lista spesa</button>
             </div>
           </div>
 
           <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Dieta attiva</span>
+              <select id="activeDietSelect"></select>
+            </label>
             <label class="field">
               <span>Giorno</span>
               <select id="dietDaySelect"></select>
@@ -198,7 +227,7 @@
             </label>
           </div>
 
-          <div id="dietEditor" class="list"></div>
+          <div id="dietPreview" class="list"></div>
         </div>
 
         <div class="card">
@@ -213,15 +242,36 @@
       </div>
     </section>
 
+    <!-- LIBRERIA DIETE -->
+    <section class="view hidden" id="view-diets">
+      <div class="grid">
+        <div class="card">
+          <div class="cardHead">
+            <h2>Le mie diete</h2>
+            <div class="row">
+              <button class="btn" id="btnDietsBack">← Indietro</button>
+              <button class="btn primary" id="btnDietNew">+ Nuova dieta</button>
+            </div>
+          </div>
+          <div id="dietsList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Tip</h2>
+          <div class="tip">Crea più diete (es. Massa, Cut, Mantenimento). Poi seleziona quella attiva da “Dieta”.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- EDITOR DIETA -->
     <section class="view hidden" id="view-dietedit">
       <div class="grid">
         <div class="card">
           <div class="cardHead">
-            <h2>Editor Dieta</h2>
+            <h2 id="dietEditTitle">Editor Dieta</h2>
             <div class="row">
-              <button class="btn" id="btnDietBack">← Indietro</button>
-              <button class="btn danger" id="btnDietReset">Reset dieta</button>
+              <button class="btn" id="btnDietEditBack">← Diete</button>
+              <button class="btn danger" id="btnDietDelete">Elimina dieta</button>
             </div>
           </div>
 
@@ -230,7 +280,7 @@
               <span>Nome dieta</span>
               <input id="dietName" placeholder="Es. Massa pulita 5 pasti" />
             </label>
-            <button class="btn primary" id="btnDietSaveName">Salva nome</button>
+            <button class="btn primary" id="btnDietSaveName">Salva</button>
           </div>
 
           <div class="row">
@@ -248,7 +298,7 @@
                 <option value="5">Pasto 5</option>
               </select>
             </label>
-            <button class="btn" id="btnCopyMealToAllDays">Copia pasto su tutti i giorni</button>
+            <button class="btn" id="btnCopyMealToAllDays">Copia pasto su tutti</button>
           </div>
 
           <div class="row">
@@ -268,11 +318,11 @@
                 <option value="pz">pz</option>
               </select>
             </label>
-            <button class="btn primary" id="btnAddFood">Aggiungi alimento</button>
+            <button class="btn primary" id="btnAddFood">Aggiungi</button>
           </div>
 
           <div class="row">
-            <button class="btn" id="btnCopyDayToAll">Copia giorno su tutti i giorni</button>
+            <button class="btn" id="btnCopyDayToAll">Copia giorno su tutti</button>
           </div>
 
           <div id="dietFoodsList" class="list"></div>
@@ -280,7 +330,7 @@
 
         <div class="card">
           <h2>Note</h2>
-          <div class="tip">Qui puoi costruire una dieta routine: stesso giorno per tutti o variabile. La lista spesa poi si calcola da sola.</div>
+          <div class="tip">Modifica qui la dieta attiva o crea nuove diete. La lista spesa si calcola automaticamente.</div>
         </div>
       </div>
     </section>
