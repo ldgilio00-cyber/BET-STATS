@@ -339,3 +339,11 @@ body.session-open .wrap{
 /* bottone Import JSON: label stile bottone */
 .btn.file{ position:relative; overflow:hidden; }
 .btn.file input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+
+/* ===== iOS: evita zoom automatico su input ===== */
+input, select, textarea, button {
+  font-size: 16px;
+}
+
+/* opzionale: mantiene label piccole */
+.field span { font-size: 12px; }
