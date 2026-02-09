@@ -1,7 +1,7 @@
-/* app.js — Fit Planner (offline-first)
-   ✅ Allenamento: scheda + sessione + log + PR (basic)
-   ✅ Dieta: 5 pasti fissi + macro target + lista spesa settimanale
-   ✅ Backup: Export/Import JSON
+/* Fit Planner — app.js (v2)
+   ✅ UI nuova
+   ✅ Modalità Sessione dedicata (fullscreen)
+   ✅ Timer recupero automatico dal "rest" della scheda
 */
 
 if ("serviceWorker" in navigator) {
@@ -9,17 +9,18 @@ if ("serviceWorker" in navigator) {
 }
 
 const $ = (id) => document.getElementById(id);
-const money = (n) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100).toFixed(2);
-const todayISO = () => new Date().toISOString().slice(0, 10);
 const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
-
-const KEY = "fitplanner_v1";
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const KEY = "fitplanner_v2";
 
 const DEFAULT = {
   settings: { weightKg: 68, mealsPerDay: 5, kcal: 2900, p: 140, c: 380, f: 80 },
   workoutPlan: null,
   dietPlan: null,
-  sessions: [], // {id,date,dayName,items:[{ex,sets:[{kg,reps,rir}]}]}
+  sessions: [],
+  activeSessionId: null,
+  activeExIndex: 0,
+  activeSetIndex: 0
 };
 
 function safeParse(raw){ try { return JSON.parse(raw); } catch { return null; } }
@@ -35,10 +36,39 @@ function toast(msg){
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toast._tm);
-  toast._tm = setTimeout(() => t.classList.remove("show"), 1600);
+  toast._tm = setTimeout(() => t.classList.remove("show"), 1400);
 }
 
 let state = loadState();
+
+/* -------------------- Utils: rest parsing -------------------- */
+function parseRestToSeconds(rest){
+  if (!rest) return 90;
+  const s = String(rest).trim();
+
+  // "2:30"
+  if (s.includes(":")){
+    const [m,sec] = s.split(":");
+    const mm = Number(m), ss = Number(sec);
+    if (isFinite(mm) && isFinite(ss)) return Math.max(0, mm*60 + ss);
+  }
+
+  // "90''" or "90”" etc
+  const onlyNums = s.replace(/[^\d]/g, "");
+  const n = Number(onlyNums);
+  if (isFinite(n) && n > 0){
+    // if looks like minutes "230" unlikely; treat as seconds
+    return n;
+  }
+  return 90;
+}
+
+function fmtMMSS(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec/60);
+  const s = sec % 60;
+  return String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+}
 
 /* -------------------- Default workout (4gg) -------------------- */
 function defaultWorkout4Days(){
@@ -51,11 +81,11 @@ function defaultWorkout4Days(){
         exercises: [
           { ex:"Panca piana bilanciere", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
           { ex:"Trazioni zavorrate", sets:4, repMin:6, repMax:8, rir:"1-2", rest:"2:00" },
-          { ex:"Panca inclinata manubri", sets:3, repMin:8, repMax:10, rir:"1-2", rest:"1:30" },
+          { ex:"Panca inclinata manubri", sets:3, repMin:8, repMax:10, rir:"1-2", rest:"90" },
           { ex:"Rematore bilanciere (o T-bar)", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-          { ex:"Alzate laterali", sets:3, repMin:12, repMax:20, rir:"0-1", rest:"1:00" },
-          { ex:"Curl manubri inclinato", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"1:00" },
-          { ex:"Pushdown cavo", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"1:00" }
+          { ex:"Alzate laterali", sets:3, repMin:12, repMax:20, rir:"0-1", rest:"60" },
+          { ex:"Curl manubri inclinato", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"60" },
+          { ex:"Pushdown cavo", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"60" }
         ]
       },
       {
@@ -64,10 +94,10 @@ function defaultWorkout4Days(){
         exercises: [
           { ex:"Squat", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
           { ex:"Stacco rumeno (RDL)", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-          { ex:"Leg press", sets:3, repMin:10, repMax:12, rir:"1", rest:"1:30" },
-          { ex:"Leg curl", sets:3, repMin:10, repMax:14, rir:"0-1", rest:"1:15" },
-          { ex:"Calf raise in piedi", sets:4, repMin:8, repMax:12, rir:"0-1", rest:"1:00" },
-          { ex:"Crunch al cavo", sets:3, repMin:10, repMax:15, rir:"1", rest:"1:00" }
+          { ex:"Leg press", sets:3, repMin:10, repMax:12, rir:"1", rest:"90" },
+          { ex:"Leg curl", sets:3, repMin:10, repMax:14, rir:"0-1", rest:"75" },
+          { ex:"Calf raise in piedi", sets:4, repMin:8, repMax:12, rir:"0-1", rest:"60" },
+          { ex:"Crunch al cavo", sets:3, repMin:10, repMax:15, rir:"1", rest:"60" }
         ]
       },
       {
@@ -75,13 +105,13 @@ function defaultWorkout4Days(){
         name: "Giovedì – UPPER 2",
         exercises: [
           { ex:"Military press", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:00" },
-          { ex:"Lat machine presa larga", sets:3, repMin:8, repMax:12, rir:"1-2", rest:"1:30" },
+          { ex:"Lat machine presa larga", sets:3, repMin:8, repMax:12, rir:"1-2", rest:"90" },
           { ex:"Panca inclinata bilanciere", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-          { ex:"Rematore chest-supported", sets:3, repMin:8, repMax:12, rir:"1", rest:"1:30" },
-          { ex:"Croci ai cavi", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"1:00" },
-          { ex:"Face pull", sets:2, repMin:12, repMax:20, rir:"0-1", rest:"1:00" },
-          { ex:"Curl EZ", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"1:00" },
-          { ex:"French press", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"1:15" }
+          { ex:"Rematore chest-supported", sets:3, repMin:8, repMax:12, rir:"1", rest:"90" },
+          { ex:"Croci ai cavi", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"60" },
+          { ex:"Face pull", sets:2, repMin:12, repMax:20, rir:"0-1", rest:"60" },
+          { ex:"Curl EZ", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"60" },
+          { ex:"French press", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"75" }
         ]
       },
       {
@@ -91,42 +121,35 @@ function defaultWorkout4Days(){
           { ex:"Stacco tecnico", sets:3, repMin:3, repMax:5, rir:"2", rest:"2:30" },
           { ex:"Hip thrust", sets:4, repMin:6, repMax:10, rir:"1-2", rest:"2:00" },
           { ex:"Front squat", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-          { ex:"Bulgarian split squat", sets:3, repMin:8, repMax:10, rir:"1", rest:"1:30" },
-          { ex:"Leg curl seduto", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"1:15" },
-          { ex:"Calf raise seduto", sets:4, repMin:12, repMax:20, rir:"0-1", rest:"1:00" },
-          { ex:"Plank zavorrato", sets:3, repMin:30, repMax:45, rir:"-", rest:"1:00", unit:"sec" }
+          { ex:"Bulgarian split squat", sets:3, repMin:8, repMax:10, rir:"1", rest:"90" },
+          { ex:"Leg curl seduto", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"75" },
+          { ex:"Calf raise seduto", sets:4, repMin:12, repMax:20, rir:"0-1", rest:"60" },
+          { ex:"Plank zavorrato", sets:3, repMin:30, repMax:45, rir:"-", rest:"60", unit:"sec" }
         ]
       }
     ]
   };
 }
 
-/* -------------------- Default diet (5 pasti, no pesce) -------------------- */
+/* -------------------- Default diet (placeholder routine) -------------------- */
 function defaultDietWeek(){
-  // Struttura: week[0..6] -> meals[1..5] -> items [{food, qty, unit, note}]
-  // Semplice e ripetibile: stessa giornata ripetuta (routine)
   const day = {
     meals: {
       1: [
         { food:"Yogurt greco 0%", qty:250, unit:"g" },
-        { food:"Fiocchi d'avena", qty:80, unit:"g" },
-        { food:"Banana", qty:1, unit:"pz" },
-        { food:"Burro d'arachidi", qty:15, unit:"g" }
+        { food:"Avena", qty:80, unit:"g" },
+        { food:"Banana", qty:1, unit:"pz" }
       ],
-      2: [
-        { food:"Whey", qty:30, unit:"g", note:"Post-allenamento" },
-        { food:"Gallette di riso", qty:6, unit:"pz" }
-      ],
+      2: [{ food:"Whey", qty:30, unit:"g" }],
       3: [
         { food:"Riso basmati", qty:120, unit:"g" },
         { food:"Petto di pollo", qty:200, unit:"g" },
-        { food:"Olio EVO", qty:10, unit:"g" },
-        { food:"Verdure (a scelta)", qty:300, unit:"g" }
+        { food:"Verdure", qty:300, unit:"g" },
+        { food:"Olio EVO", qty:10, unit:"g" }
       ],
       4: [
         { food:"Pane", qty:120, unit:"g" },
-        { food:"Bresaola", qty:120, unit:"g" },
-        { food:"Frutta", qty:1, unit:"pz" }
+        { food:"Bresaola", qty:120, unit:"g" }
       ],
       5: [
         { food:"Uova intere", qty:3, unit:"pz" },
@@ -136,16 +159,12 @@ function defaultDietWeek(){
       ]
     }
   };
-  return {
-    name: "Massa pulita (no pesce) – routine",
-    week: Array.from({length:7}, () => structuredClone(day))
-  };
+  return { name:"Routine massa pulita", week:Array.from({length:7},()=>structuredClone(day)) };
 }
 
-/* -------------------- UI: tabs -------------------- */
+/* -------------------- Tabs / Views -------------------- */
 function setView(view){
-  const tabs = document.querySelectorAll(".tab");
-  tabs.forEach(b => b.classList.toggle("active", b.dataset.view === view));
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   const el = document.getElementById("view-" + view);
   if (el) el.classList.remove("hidden");
@@ -154,19 +173,16 @@ function setView(view){
 document.addEventListener("click", (e) => {
   const tab = e.target.closest(".tab");
   if (tab) setView(tab.dataset.view);
-
   const jump = e.target.closest("[data-jump]");
   if (jump) setView(jump.dataset.jump);
 });
 
-/* -------------------- Populate selects -------------------- */
+/* -------------------- Workout preview -------------------- */
 function populateDays(){
   const sel = $("daySelect");
-  if (!sel) return;
+  if (!sel || !state.workoutPlan) return;
   sel.innerHTML = "";
-  const plan = state.workoutPlan;
-  if (!plan) return;
-  for (const d of plan.days){
+  for (const d of state.workoutPlan.days){
     const o = document.createElement("option");
     o.value = d.id;
     o.textContent = d.name;
@@ -174,6 +190,269 @@ function populateDays(){
   }
 }
 
+function renderDayPreview(){
+  const box = $("dayPreview");
+  const sel = $("daySelect");
+  if (!box || !sel || !state.workoutPlan) return;
+
+  const day = state.workoutPlan.days.find(d => d.id === sel.value);
+  if (!day) return;
+
+  box.innerHTML = "";
+  day.exercises.forEach(ex => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="itemTop">
+        <div class="itemTitle">${ex.ex}</div>
+        <div class="badge">${ex.sets} serie • ${ex.repMin}-${ex.repMax} • RIR ${ex.rir}</div>
+      </div>
+      <div class="muted small">Recupero: ${ex.rest}</div>
+    `;
+    box.appendChild(div);
+  });
+}
+
+/* -------------------- Session model -------------------- */
+function startSession(dayId){
+  const day = state.workoutPlan.days.find(d => d.id === dayId);
+  if (!day) return;
+
+  const session = {
+    id: uid(),
+    date: todayISO(),
+    dayId: day.id,
+    dayName: day.name,
+    items: day.exercises.map(ex => ({
+      ex: ex.ex,
+      unit: ex.unit || "reps",
+      target: { sets: ex.sets, repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir, rest: ex.rest },
+      sets: Array.from({length: ex.sets}, () => ({ kg:"", reps:"", rir:"" }))
+    })),
+    closed: false
+  };
+
+  state.sessions.push(session);
+  state.activeSessionId = session.id;
+  state.activeExIndex = 0;
+  state.activeSetIndex = 0;
+  saveState();
+
+  openSessionUI();
+  renderSession();
+  toast("Sessione avviata");
+}
+
+function activeSession(){
+  if (!state.activeSessionId) return null;
+  return state.sessions.find(s => s.id === state.activeSessionId) || null;
+}
+
+/* -------------------- Timer -------------------- */
+let timer = { running:false, remaining:0, interval:null };
+
+function timerSet(seconds){
+  timer.remaining = Math.max(0, Math.floor(seconds));
+  $("timerTime").textContent = fmtMMSS(timer.remaining);
+}
+
+function timerStop(){
+  timer.running = false;
+  clearInterval(timer.interval);
+  timer.interval = null;
+}
+
+function timerStart(){
+  if (timer.running) return;
+  timer.running = true;
+  timer.interval = setInterval(() => {
+    timer.remaining = Math.max(0, timer.remaining - 1);
+    $("timerTime").textContent = fmtMMSS(timer.remaining);
+    if (timer.remaining <= 0){
+      timerStop();
+      toast("Recupero finito");
+    }
+  }, 1000);
+}
+
+function timerAutoFromExercise(){
+  const s = activeSession();
+  if (!s) return;
+  const it = s.items[state.activeExIndex];
+  const sec = parseRestToSeconds(it.target.rest);
+  timerStop();
+  timerSet(sec);
+  timerStart();
+}
+
+/* -------------------- Session UI -------------------- */
+function openSessionUI(){
+  $("session").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+function closeSessionUI(){
+  $("session").classList.add("hidden");
+  document.body.style.overflow = "";
+  timerStop();
+}
+
+function renderSession(){
+  const s = activeSession();
+  if (!s) return closeSessionUI();
+
+  $("sessionDay").textContent = s.dayName;
+  $("sessionDate").textContent = s.date;
+
+  const it = s.items[state.activeExIndex];
+  $("exName").textContent = it.ex;
+
+  const targ = it.target;
+  const unit = it.unit === "sec" ? "sec" : "reps";
+  $("exTarget").textContent = `Target: ${targ.sets}x ${targ.repMin}-${targ.repMax} ${unit} • RIR ${targ.rir} • Rec ${targ.rest}`;
+
+  // sets
+  const box = $("setsBox");
+  box.innerHTML = "";
+  it.sets.forEach((st, idx) => {
+    const row = document.createElement("div");
+    row.className = "setRow";
+    row.innerHTML = `
+      <div class="setIdx">Serie ${idx+1}${idx === state.activeSetIndex ? " • ATTIVA" : ""}</div>
+
+      <label class="field" style="min-width:120px">
+        <span>Kg</span>
+        <input inputmode="decimal" data-f="kg" data-idx="${idx}" value="${st.kg}">
+      </label>
+
+      <label class="field" style="min-width:120px">
+        <span>${it.unit === "sec" ? "Secondi" : "Reps"}</span>
+        <input inputmode="numeric" data-f="reps" data-idx="${idx}" value="${st.reps}">
+      </label>
+
+      <label class="field" style="min-width:120px">
+        <span>RIR</span>
+        <input inputmode="numeric" data-f="rir" data-idx="${idx}" value="${st.rir}">
+      </label>
+
+      <button class="btn" data-setactive="${idx}">Seleziona</button>
+    `;
+    box.appendChild(row);
+  });
+
+  // set timer display to current exercise rest if timer not running and remaining==0
+  if (!timer.running && timer.remaining === 0){
+    timerSet(parseRestToSeconds(it.target.rest));
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-setactive]");
+  if (btn){
+    state.activeSetIndex = Number(btn.dataset.setactive);
+    saveState();
+    renderSession();
+  }
+});
+
+document.addEventListener("input", (e) => {
+  const inp = e.target.closest("#setsBox input[data-f][data-idx]");
+  if (!inp) return;
+  const s = activeSession();
+  if (!s) return;
+  const it = s.items[state.activeExIndex];
+  const idx = Number(inp.dataset.idx);
+  const f = inp.dataset.f;
+  it.sets[idx][f] = inp.value;
+  saveState();
+});
+
+function saveCurrentSetAndAutoTimer(){
+  const s = activeSession();
+  if (!s) return;
+
+  const it = s.items[state.activeExIndex];
+  const idx = state.activeSetIndex;
+  const st = it.sets[idx];
+
+  // mini-validazione
+  if (!String(st.reps || "").trim()){
+    toast("Inserisci reps/secondi");
+    return;
+  }
+  // se kg vuoto ok (bodyweight), rir consigliato ma non obbligatorio
+  toast(`Serie ${idx+1} salvata`);
+
+  // passa alla serie successiva se esiste, altrimenti resta
+  if (idx < it.sets.length - 1){
+    state.activeSetIndex = idx + 1;
+  }
+  saveState();
+
+  // timer automatico dal recupero dell'esercizio
+  timerAutoFromExercise();
+  renderSession();
+}
+
+function nextExercise(){
+  const s = activeSession();
+  if (!s) return;
+  if (state.activeExIndex < s.items.length - 1){
+    state.activeExIndex++;
+    state.activeSetIndex = 0;
+    saveState();
+    // set timer to new exercise rest (non parte subito: parte quando salvi una serie)
+    timerStop();
+    timerSet(parseRestToSeconds(s.items[state.activeExIndex].target.rest));
+    renderSession();
+  } else {
+    toast("Ultimo esercizio");
+  }
+}
+
+function prevExercise(){
+  const s = activeSession();
+  if (!s) return;
+  if (state.activeExIndex > 0){
+    state.activeExIndex--;
+    state.activeSetIndex = 0;
+    saveState();
+    timerStop();
+    timerSet(parseRestToSeconds(s.items[state.activeExIndex].target.rest));
+    renderSession();
+  }
+}
+
+$("btnSaveSet")?.addEventListener("click", saveCurrentSetAndAutoTimer);
+$("btnNextAfterSave")?.addEventListener("click", () => { nextExercise(); });
+
+$("btnNextEx")?.addEventListener("click", nextExercise);
+$("btnPrevEx")?.addEventListener("click", prevExercise);
+
+$("btnSessionExit")?.addEventListener("click", () => {
+  closeSessionUI();
+  state.activeSessionId = null; // “esci” = non in sessione (i dati restano salvati)
+  saveState();
+});
+
+$("btnSessionFinish")?.addEventListener("click", () => {
+  const s = activeSession();
+  if (!s) return;
+  s.closed = true;
+  state.activeSessionId = null;
+  timerStop();
+  saveState();
+  closeSessionUI();
+  renderHistory();
+  renderPR();
+  toast("Sessione chiusa e salvata");
+});
+
+/* Timer buttons */
+$("btnTimerStart")?.addEventListener("click", timerStart);
+$("btnTimerPause")?.addEventListener("click", () => { timerStop(); toast("Timer in pausa"); });
+$("btnTimerSkip")?.addEventListener("click", () => { timerStop(); timerSet(0); toast("Recupero saltato"); });
+
+/* -------------------- Diet UI (lasciata semplice) -------------------- */
 function populateDietDays(){
   const sel = $("dietDaySelect");
   if (!sel) return;
@@ -187,146 +466,6 @@ function populateDietDays(){
   }
 }
 
-/* -------------------- Workout preview + session -------------------- */
-let activeSessionId = null;
-
-function renderDayPreview(){
-  const box = $("dayPreview");
-  const sel = $("daySelect");
-  if (!box || !sel || !state.workoutPlan) return;
-  const day = state.workoutPlan.days.find(d => d.id === sel.value);
-  if (!day) return;
-
-  box.innerHTML = "";
-  for (const ex of day.exercises){
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div class="item-head">
-        <div class="item-title">${ex.ex}</div>
-        <div class="badge">${ex.sets} serie • ${ex.repMin}-${ex.repMax} reps • RIR ${ex.rir}</div>
-      </div>
-      <div class="muted">Recupero: ${ex.rest}</div>
-    `;
-    box.appendChild(div);
-  }
-}
-
-function startSessionFromDay(dayId){
-  const plan = state.workoutPlan;
-  if (!plan) return;
-  const day = plan.days.find(d => d.id === dayId);
-  if (!day) return;
-
-  const session = {
-    id: uid(),
-    date: todayISO(),
-    dayId: day.id,
-    dayName: day.name,
-    items: day.exercises.map(ex => ({
-      ex: ex.ex,
-      target: { sets: ex.sets, repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir, rest: ex.rest, unit: ex.unit || "reps" },
-      sets: Array.from({length: ex.sets}, () => ({ kg:"", reps:"", rir:"" }))
-    }))
-  };
-
-  state.sessions.push(session);
-  activeSessionId = session.id;
-  saveState();
-  renderSessionBox();
-  toast("Sessione avviata");
-}
-
-function getActiveSession(){
-  if (!activeSessionId) return null;
-  return state.sessions.find(s => s.id === activeSessionId) || null;
-}
-
-function renderSessionBox(){
-  const box = $("sessionBox");
-  if (!box) return;
-  const s = getActiveSession();
-  if (!s){
-    box.innerHTML = `<div class="muted">Nessuna sessione attiva.</div>`;
-    return;
-  }
-
-  box.innerHTML = "";
-  const head = document.createElement("div");
-  head.className = "item";
-  head.innerHTML = `
-    <div class="item-head">
-      <div class="item-title">${s.dayName}</div>
-      <div class="badge ok">${s.date}</div>
-    </div>
-    <div class="row">
-      <button class="btn danger" id="btnEndSession">Chiudi sessione</button>
-    </div>
-  `;
-  box.appendChild(head);
-
-  for (let i=0;i<s.items.length;i++){
-    const it = s.items[i];
-    const card = document.createElement("div");
-    card.className = "item";
-    card.innerHTML = `
-      <div class="item-head">
-        <div class="item-title">${it.ex}</div>
-        <div class="badge">Target: ${it.target.sets}x ${it.target.repMin}-${it.target.repMax} • RIR ${it.target.rir}</div>
-      </div>
-      <div class="muted">Rec: ${it.target.rest}</div>
-      <div class="list" id="setlist-${i}"></div>
-    `;
-    box.appendChild(card);
-
-    const setlist = card.querySelector(`#setlist-${i}`);
-    for (let k=0;k<it.sets.length;k++){
-      const row = document.createElement("div");
-      row.className = "row";
-      row.innerHTML = `
-        <span class="badge">Serie ${k+1}</span>
-        <label class="field" style="min-width:120px">
-          <span>Kg</span>
-          <input inputmode="decimal" data-s="${s.id}" data-i="${i}" data-k="${k}" data-f="kg" value="${it.sets[k].kg}">
-        </label>
-        <label class="field" style="min-width:120px">
-          <span>${it.target.unit === "sec" ? "Secondi" : "Reps"}</span>
-          <input inputmode="numeric" data-s="${s.id}" data-i="${i}" data-k="${k}" data-f="reps" value="${it.sets[k].reps}">
-        </label>
-        <label class="field" style="min-width:120px">
-          <span>RIR</span>
-          <input inputmode="numeric" data-s="${s.id}" data-i="${i}" data-k="${k}" data-f="rir" value="${it.sets[k].rir}">
-        </label>
-      `;
-      setlist.appendChild(row);
-    }
-  }
-}
-
-document.addEventListener("input", (e) => {
-  const inp = e.target.closest("input[data-s][data-i][data-k][data-f]");
-  if (!inp) return;
-  const sid = inp.dataset.s;
-  const i = Number(inp.dataset.i);
-  const k = Number(inp.dataset.k);
-  const f = inp.dataset.f;
-  const s = state.sessions.find(x => x.id === sid);
-  if (!s) return;
-  s.items[i].sets[k][f] = inp.value;
-  saveState();
-});
-
-document.addEventListener("click", (e) => {
-  if (e.target && e.target.id === "btnEndSession"){
-    activeSessionId = null;
-    toast("Sessione chiusa (salvata nello storico)");
-    renderSessionBox();
-    renderHistory();
-    renderPR();
-  }
-});
-
-/* -------------------- Diet editor -------------------- */
 function renderDietEditor(){
   const box = $("dietEditor");
   const daySel = $("dietDaySelect");
@@ -340,26 +479,12 @@ function renderDietEditor(){
   const items = day.meals[mi] || [];
 
   box.innerHTML = "";
-
-  const header = document.createElement("div");
-  header.className = "item";
-  header.innerHTML = `
-    <div class="item-head">
-      <div class="item-title">Pasto ${mi}</div>
-      <div class="badge">Elementi: ${items.length}</div>
-    </div>
-    <div class="row">
-      <button class="btn" id="btnAddFood">Aggiungi alimento</button>
-    </div>
-  `;
-  box.appendChild(header);
-
   items.forEach((it, idx) => {
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
-      <div class="item-head">
-        <div class="item-title">${it.food}</div>
+      <div class="itemTop">
+        <div class="itemTitle">${it.food}</div>
         <div class="badge">${it.qty} ${it.unit}</div>
       </div>
       <div class="row">
@@ -375,80 +500,50 @@ function renderDietEditor(){
           <span>Unità</span>
           <input data-d="${di}" data-m="${mi}" data-idx="${idx}" data-f="unit" value="${it.unit}">
         </label>
-        <button class="btn danger" data-delfood="1" data-d="${di}" data-m="${mi}" data-idx="${idx}">Elimina</button>
       </div>
-      ${it.note ? `<div class="muted">${it.note}</div>` : ``}
     `;
     box.appendChild(div);
   });
 }
 
 document.addEventListener("input", (e) => {
-  const inp = e.target.closest("input[data-d][data-m][data-idx][data-f]");
+  const inp = e.target.closest("#dietEditor input[data-d][data-m][data-idx][data-f]");
   if (!inp) return;
   const d = Number(inp.dataset.d), m = Number(inp.dataset.m), idx = Number(inp.dataset.idx);
   const f = inp.dataset.f;
-  const day = state.dietPlan?.week?.[d];
-  if (!day) return;
-  const item = day.meals[m][idx];
+  const item = state.dietPlan?.week?.[d]?.meals?.[m]?.[idx];
   if (!item) return;
   item[f] = (f === "qty") ? Number(inp.value || 0) : inp.value;
   saveState();
 });
 
-document.addEventListener("click", (e) => {
-  if (e.target && e.target.id === "btnAddFood"){
-    const di = Number($("dietDaySelect").value);
-    const mi = Number($("mealSelect").value);
-    state.dietPlan.week[di].meals[mi].push({ food:"Nuovo alimento", qty:100, unit:"g" });
-    saveState();
-    renderDietEditor();
-  }
-  const del = e.target.closest("[data-delfood]");
-  if (del){
-    const d = Number(del.dataset.d), m = Number(del.dataset.m), idx = Number(del.dataset.idx);
-    state.dietPlan.week[d].meals[m].splice(idx,1);
-    saveState();
-    renderDietEditor();
-  }
-});
-
-/* -------------------- Grocery list (weekly) -------------------- */
+/* -------------------- Grocery (alert semplice) -------------------- */
 function generateGrocery(){
   if (!state.dietPlan) return null;
-
-  const agg = new Map(); // key=food|unit -> qty
+  const agg = new Map();
   for (let d=0; d<7; d++){
     const day = state.dietPlan.week[d];
     for (let m=1; m<=5; m++){
       const items = day.meals[m] || [];
       for (const it of items){
         const key = `${it.food}||${it.unit}`;
-        const prev = agg.get(key) || 0;
-        const add = (typeof it.qty === "number") ? it.qty : Number(it.qty||0);
-        agg.set(key, prev + add);
+        agg.set(key, (agg.get(key)||0) + Number(it.qty||0));
       }
     }
   }
-
-  const list = Array.from(agg.entries()).map(([key, qty]) => {
-    const [food, unit] = key.split("||");
-    return { food, qty, unit };
+  return Array.from(agg.entries()).map(([k,qty])=>{
+    const [food,unit]=k.split("||");
+    return {food,qty,unit};
   }).sort((a,b)=>a.food.localeCompare(b.food));
-
-  return list;
 }
 
 function showGrocery(){
   const list = generateGrocery();
   if (!list){ toast("Carica prima una dieta"); return; }
-
-  // semplice popup
-  const lines = list.map(x => `• ${x.food}: ${x.qty} ${x.unit}`).join("\n");
-  alert("LISTA SPESA SETTIMANALE\n\n" + lines + "\n\n(Export JSON consigliato per salvarla)");
+  alert("LISTA SPESA SETTIMANALE\n\n" + list.map(x=>`• ${x.food}: ${x.qty} ${x.unit}`).join("\n"));
 }
 
-/* -------------------- Progress: history + PR basic -------------------- */
+/* -------------------- Progress -------------------- */
 function renderHistory(){
   const box = $("sessionHistory");
   if (!box) return;
@@ -458,18 +553,18 @@ function renderHistory(){
     box.innerHTML = `<div class="muted">Nessuna sessione registrata.</div>`;
     return;
   }
-  for (const s of sessions.slice(0,50)){
+  sessions.slice(0,60).forEach(s=>{
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
-      <div class="item-head">
-        <div class="item-title">${s.dayName}</div>
-        <div class="badge ok">${s.date}</div>
+      <div class="itemTop">
+        <div class="itemTitle">${s.dayName}</div>
+        <div class="badge">${s.date}${s.closed ? "" : " • (aperta)"}</div>
       </div>
-      <div class="muted">Esercizi: ${s.items.length}</div>
+      <div class="muted small">Esercizi: ${s.items.length}</div>
     `;
     box.appendChild(div);
-  }
+  });
 }
 
 function renderPR(){
@@ -477,8 +572,7 @@ function renderPR(){
   if (!box) return;
   box.innerHTML = "";
 
-  // PR semplice: massimo kg registrato per esercizio
-  const pr = new Map(); // ex -> maxKg
+  const pr = new Map();
   for (const s of state.sessions){
     for (const it of s.items){
       for (const st of it.sets){
@@ -495,39 +589,36 @@ function renderPR(){
     return;
   }
 
-  const list = Array.from(pr.entries()).sort((a,b)=>b[1]-a[1]).slice(0,30);
-  for (const [ex, kg] of list){
+  Array.from(pr.entries()).sort((a,b)=>b[1]-a[1]).slice(0,40).forEach(([ex,kg])=>{
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
-      <div class="item-head">
-        <div class="item-title">${ex}</div>
-        <div class="badge ok">${money(kg)} kg</div>
+      <div class="itemTop">
+        <div class="itemTitle">${ex}</div>
+        <div class="badge">${kg.toFixed(1)} kg</div>
       </div>
     `;
     box.appendChild(div);
-  }
+  });
 }
 
-/* -------------------- Home KPI -------------------- */
+/* -------------------- Home & settings -------------------- */
 function homeRefresh(){
-  $("homeKcal").textContent = state.settings.kcal + " kcal";
+  $("homeKcal").textContent = `${state.settings.kcal} kcal`;
+  $("homeSessions").textContent = String(state.sessions.length);
+  $("homePlanName").textContent = state.workoutPlan?.name || "—";
 
-  // “Allenamento oggi”: se è lun/mar/gio/ven mostra quel giorno
   const dow = new Date().getDay(); // 0 dom ... 6 sab
-  let dayName = "Riposo";
+  let today = "Riposo";
   if (state.workoutPlan){
     const map = {1:"mon",2:"tue",4:"thu",5:"fri"};
     const id = map[dow];
-    if (id){
-      const d = state.workoutPlan.days.find(x => x.id === id);
-      if (d) dayName = d.name;
-    }
+    const d = id ? state.workoutPlan.days.find(x=>x.id===id) : null;
+    if (d) today = d.name;
   }
-  $("homeTodayWorkout").textContent = dayName;
+  $("homeTodayWorkout").textContent = today;
 }
 
-/* -------------------- Settings -------------------- */
 function renderSettings(){
   $("setWeight").value = state.settings.weightKg;
   $("setMeals").value = state.settings.mealsPerDay;
@@ -555,14 +646,14 @@ $("btnSaveSettings")?.addEventListener("click", () => {
   toast("Impostazioni salvate");
 });
 
-/* -------------------- Buttons -------------------- */
+/* -------------------- Buttons: load, start, diet, backup -------------------- */
 $("btnLoadDefault")?.addEventListener("click", () => {
   state.workoutPlan = defaultWorkout4Days();
   saveState();
   populateDays();
   renderDayPreview();
   homeRefresh();
-  toast("Scheda 4gg caricata");
+  toast("Scheda caricata");
 });
 
 $("btnResetWorkout")?.addEventListener("click", () => {
@@ -575,29 +666,29 @@ $("btnResetWorkout")?.addEventListener("click", () => {
   toast("Scheda resettata");
 });
 
-$("daySelect")?.addEventListener("change", () => renderDayPreview());
+$("daySelect")?.addEventListener("change", renderDayPreview);
 
 $("btnStartDay")?.addEventListener("click", () => {
-  const sel = $("daySelect");
-  if (!sel?.value){ toast("Carica prima la scheda"); return; }
-  startSessionFromDay(sel.value);
+  if (!state.workoutPlan){ toast("Carica prima la scheda"); return; }
+  const id = $("daySelect")?.value;
+  if (!id) return;
+  startSession(id);
 });
 
 $("btnStartSession")?.addEventListener("click", () => {
-  setView("workout");
-  // se oggi è giorno allenamento, prova ad avviare quel day
   if (!state.workoutPlan){ toast("Carica prima la scheda"); return; }
+  // Avvia automaticamente il giorno “giusto” in base al calendario (lun/mar/gio/ven)
   const dow = new Date().getDay();
   const map = {1:"mon",2:"tue",4:"thu",5:"fri"};
   const id = map[dow] || state.workoutPlan.days[0].id;
-  $("daySelect").value = id;
-  renderDayPreview();
-  startSessionFromDay(id);
+  startSession(id);
 });
+
+$("btnSessionFinish")?.addEventListener("click", () => {}); // already set above
 
 $("btnTodayMeals")?.addEventListener("click", () => {
   setView("diet");
-  $("dietDaySelect").value = String((new Date().getDay() + 6) % 7); // lun=0
+  $("dietDaySelect").value = String((new Date().getDay() + 6) % 7);
   $("mealSelect").value = "1";
   renderDietEditor();
 });
@@ -607,16 +698,18 @@ $("btnLoadDietDefault")?.addEventListener("click", () => {
   saveState();
   populateDietDays();
   renderDietEditor();
-  toast("Dieta (routine) caricata");
+  toast("Dieta caricata");
 });
 
-$("dietDaySelect")?.addEventListener("change", () => renderDietEditor());
-$("mealSelect")?.addEventListener("change", () => renderDietEditor());
+$("dietDaySelect")?.addEventListener("change", renderDietEditor);
+$("mealSelect")?.addEventListener("change", renderDietEditor);
 
-$("btnGenerateGrocery")?.addEventListener("click", () => showGrocery());
-$("btnGrocery")?.addEventListener("click", () => showGrocery());
+$("btnGenerateGrocery")?.addEventListener("click", showGrocery);
+$("btnGrocery")?.addEventListener("click", showGrocery);
 
-/* Backup */
+$("btnBackup")?.addEventListener("click", () => setView("settings"));
+
+/* Backup export/import */
 $("btnExport")?.addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -632,39 +725,41 @@ $("fileImport")?.addEventListener("change", async (e) => {
   const txt = await f.text();
   const obj = safeParse(txt);
   if (!obj){ toast("JSON non valido"); return; }
-  // merge semplice (o sostituzione)
-  if (!confirm("Import: vuoi SOSTITUIRE tutti i dati? (OK=Sostituisci, Annulla=Unisci)")){
-    // Unisci (sessions concat, settings preferisci import se presenti)
+  if (confirm("Import: OK = SOSTITUISCI tutto, Annulla = UNISCI")){
+    state = obj;
+  } else {
     state.settings = obj.settings || state.settings;
     state.workoutPlan = obj.workoutPlan || state.workoutPlan;
     state.dietPlan = obj.dietPlan || state.dietPlan;
     state.sessions = [...state.sessions, ...(obj.sessions || [])];
-  } else {
-    state = obj;
   }
   saveState();
   boot();
   toast("Import completato");
 });
 
-$("btnBackup")?.addEventListener("click", () => setView("settings"));
-
 /* -------------------- Boot -------------------- */
 function boot(){
-  // init defaults if empty
   if (!state.workoutPlan) state.workoutPlan = defaultWorkout4Days();
   if (!state.dietPlan) state.dietPlan = defaultDietWeek();
   saveState();
 
   populateDays();
-  populateDietDays();
   renderDayPreview();
-  renderSessionBox();
+  populateDietDays();
   renderDietEditor();
   renderSettings();
   renderHistory();
   renderPR();
   homeRefresh();
+
+  // Se c'era una sessione attiva (es. refresh), ripristina la UI dedicata
+  if (state.activeSessionId){
+    openSessionUI();
+    renderSession();
+  } else {
+    closeSessionUI();
+  }
 }
 
 boot();
