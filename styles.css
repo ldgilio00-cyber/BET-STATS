@@ -326,3 +326,16 @@ body.session-open .wrap{
   z-index:80;
 }
 .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+
+/* ===== PATCH UI: Librerie Schede/Diete (azioni) ===== */
+
+.miniActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+
+/* bottone Import JSON: label stile bottone */
+.btn.file{ position:relative; overflow:hidden; }
+.btn.file input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
