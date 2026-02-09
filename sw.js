@@ -1,12 +1,15 @@
-const CACHE = "fitplanner_v1";
+const BASE = "/BET-STATS/";
+const CACHE = "fitplanner_gp_v5";
+
 const ASSETS = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./manifest.webmanifest",
-  "./icon-192.png",
-  "./icon-512.png"
+  BASE,
+  BASE + "index.html",
+  BASE + "styles.css",
+  BASE + "app.js",
+  BASE + "sw.js",
+  BASE + "manifest.webmanifest",
+  BASE + "icon-192.png",
+  BASE + "icon-512.png",
 ];
 
 self.addEventListener("install", (e) => {
@@ -24,17 +27,16 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  const req = e.request;
   e.respondWith(
-    caches.match(req).then((cached) => {
+    caches.match(e.request).then((cached) => {
       if (cached) return cached;
-      return fetch(req)
+      return fetch(e.request)
         .then((res) => {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
           return res;
         })
-        .catch(() => caches.match("./index.html"));
+        .catch(() => caches.match(BASE + "index.html"));
     })
   );
 });
