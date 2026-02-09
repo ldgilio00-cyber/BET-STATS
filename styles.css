@@ -26,6 +26,12 @@ body{
 .muted{color:var(--muted)}
 .small{font-size:12px}
 
+/* 🔥 Quando la sessione è aperta, nascondi tutto il resto */
+body.session-open .topbar,
+body.session-open .wrap{
+  display:none !important;
+}
+
 .topbar{
   position:sticky; top:0; z-index:10;
   padding:14px 14px 10px;
@@ -105,7 +111,7 @@ body{
 .actions{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 @media(min-width:700px){ .actions{grid-template-columns:1fr 1fr 1fr 1fr} }
 
-.field{display:flex; flex-direction:column; gap:6px; min-width:160px}
+.field{display:flex; flex-direction:column; gap:6px; min-width:140px}
 .field span{font-size:12px; color:var(--muted)}
 .field input,.field select,.field textarea{
   background:rgba(11,18,32,.70);
@@ -171,16 +177,20 @@ body{
 /* ---------- SESSION MODE (fullscreen) ---------- */
 .session{
   position:fixed; inset:0; z-index:50;
-  background:linear-gradient(180deg, rgba(11,18,32,.98), rgba(7,12,22,.98));
+  background:linear-gradient(180deg, rgba(11,18,32,1), rgba(7,12,22,1)); /* niente trasparenza */
   display:flex;
   flex-direction:column;
+
+  /* Safe area iPhone */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .sessionTop{
   display:flex; justify-content:space-between; gap:10px; align-items:center;
   padding:14px;
   border-bottom:1px solid var(--line);
-  background:rgba(11,18,32,.92);
+  background:rgba(11,18,32,1);
 }
 .sessionTitle{text-align:center; flex:1}
 .sessionDay{font-weight:950}
@@ -189,12 +199,12 @@ body{
 .timerCard{
   margin:14px;
   border:1px solid rgba(37,99,235,.35);
-  background:linear-gradient(180deg, rgba(37,99,235,.16), rgba(11,18,32,.6));
+  background:linear-gradient(180deg, rgba(37,99,235,.16), rgba(11,18,32,.85));
   border-radius:22px;
   padding:14px;
 }
 .timerLabel{font-size:12px; letter-spacing:.12em; color:rgba(229,231,235,.75); font-weight:900}
-.timerTime{font-size:44px; font-weight:950; margin-top:6px}
+.timerTime{font-size:44px; font-weight:950; margin-top:6px; line-height:1}
 .timerRow{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
 
 .sessionBody{
@@ -211,6 +221,7 @@ body{
 .exName{font-size:18px; font-weight:950}
 .exTarget{font-size:12px; color:var(--muted); margin-top:2px}
 
+/* Set cards: più pulito su mobile */
 .sets{
   margin-top:12px;
   display:flex;
@@ -219,24 +230,23 @@ body{
 }
 .setRow{
   display:grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr;
   gap:10px;
-  align-items:end;
   border:1px solid var(--line);
   border-radius:18px;
   padding:12px;
-  background:rgba(11,18,32,.60);
+  background:rgba(11,18,32,.78);
 }
-.setIdx{grid-column:1/-1; font-weight:950; color:rgba(229,231,235,.9)}
-@media(min-width:700px){
-  .setRow{grid-template-columns: 140px 1fr 1fr 1fr auto}
-  .setIdx{grid-column:auto}
+.setIdx{
+  grid-column:1/-1;
+  font-weight:950;
+  color:rgba(229,231,235,.9);
 }
 
 .sessionBottom{
   position:sticky;
   bottom:0;
-  background:linear-gradient(180deg, transparent, rgba(11,18,32,.95) 35%, rgba(11,18,32,.98));
+  background:linear-gradient(180deg, transparent, rgba(11,18,32,.95) 35%, rgba(11,18,32,1));
   padding:12px 0 6px;
   display:flex;
   gap:10px;
