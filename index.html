@@ -102,6 +102,72 @@
       </div>
     </section>
 
+    <!-- EDITOR SCHEDA -->
+    <section class="view hidden" id="view-planedit">
+      <div class="grid">
+        <div class="card">
+          <div class="cardHead">
+            <h2>Editor Scheda</h2>
+            <div class="row">
+              <button class="btn" id="btnPlanBack">← Indietro</button>
+              <button class="btn danger" id="btnPlanReset">Reset scheda</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Nome scheda</span>
+              <input id="planName" placeholder="Es. Ipertrofia 4 giorni" />
+            </label>
+            <button class="btn primary" id="btnPlanSaveName">Salva nome</button>
+          </div>
+
+          <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Nuovo giorno (nome)</span>
+              <input id="newDayName" placeholder="Es. Lunedì – Upper" />
+            </label>
+            <button class="btn primary" id="btnAddDay">Aggiungi giorno</button>
+          </div>
+
+          <div id="planDaysList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Modifica esercizi del giorno</h2>
+
+          <div class="row">
+            <label class="field" style="min-width:240px; flex:1">
+              <span>Giorno selezionato</span>
+              <select id="planDaySelect"></select>
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Nome esercizio</span>
+              <input id="exNameIn" placeholder="Es. Panca piana bilanciere" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field"><span>Serie</span><input id="exSetsIn" type="number" min="1" step="1" value="3"></label>
+            <label class="field"><span>Rep min</span><input id="exRepMinIn" type="number" min="1" step="1" value="8"></label>
+            <label class="field"><span>Rep max</span><input id="exRepMaxIn" type="number" min="1" step="1" value="12"></label>
+            <label class="field"><span>RIR</span><input id="exRirIn" placeholder="1-2" value="1-2"></label>
+            <label class="field"><span>Recupero</span><input id="exRestIn" placeholder="90 o 2:00" value="90"></label>
+          </div>
+
+          <div class="row">
+            <button class="btn primary" id="btnAddExercise">Aggiungi esercizio</button>
+            <button class="btn" id="btnDuplicateDay">Duplica giorno</button>
+          </div>
+
+          <div id="planExercisesList" class="list"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- DIETA -->
     <section class="view hidden" id="view-diet">
       <div class="grid">
@@ -143,6 +209,78 @@
             <div class="kpi"><div class="kpiLabel">Carbo</div><div class="kpiValue" id="cTarget">—</div></div>
             <div class="kpi"><div class="kpiLabel">Grassi</div><div class="kpiValue" id="fTarget">—</div></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDITOR DIETA -->
+    <section class="view hidden" id="view-dietedit">
+      <div class="grid">
+        <div class="card">
+          <div class="cardHead">
+            <h2>Editor Dieta</h2>
+            <div class="row">
+              <button class="btn" id="btnDietBack">← Indietro</button>
+              <button class="btn danger" id="btnDietReset">Reset dieta</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Nome dieta</span>
+              <input id="dietName" placeholder="Es. Massa pulita 5 pasti" />
+            </label>
+            <button class="btn primary" id="btnDietSaveName">Salva nome</button>
+          </div>
+
+          <div class="row">
+            <label class="field" style="min-width:220px">
+              <span>Giorno</span>
+              <select id="dietEditDaySelect"></select>
+            </label>
+            <label class="field" style="min-width:180px">
+              <span>Pasto</span>
+              <select id="dietEditMealSelect">
+                <option value="1">Pasto 1</option>
+                <option value="2">Pasto 2</option>
+                <option value="3">Pasto 3</option>
+                <option value="4">Pasto 4</option>
+                <option value="5">Pasto 5</option>
+              </select>
+            </label>
+            <button class="btn" id="btnCopyMealToAllDays">Copia pasto su tutti i giorni</button>
+          </div>
+
+          <div class="row">
+            <label class="field" style="flex:1; min-width:220px">
+              <span>Alimento</span>
+              <input id="foodNameIn" placeholder="Es. Riso basmati" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="field"><span>Quantità</span><input id="foodQtyIn" type="number" min="0" step="1" value="100"></label>
+            <label class="field">
+              <span>Unità</span>
+              <select id="foodUnitIn">
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+                <option value="pz">pz</option>
+              </select>
+            </label>
+            <button class="btn primary" id="btnAddFood">Aggiungi alimento</button>
+          </div>
+
+          <div class="row">
+            <button class="btn" id="btnCopyDayToAll">Copia giorno su tutti i giorni</button>
+          </div>
+
+          <div id="dietFoodsList" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Note</h2>
+          <div class="tip">Qui puoi costruire una dieta routine: stesso giorno per tutti o variabile. La lista spesa poi si calcola da sola.</div>
         </div>
       </div>
     </section>
