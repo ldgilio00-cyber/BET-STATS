@@ -1,11 +1,10 @@
-/* Fit Planner — app.js (v2)
-   ✅ UI nuova
-   ✅ Modalità Sessione dedicata (fullscreen)
-   ✅ Timer recupero automatico dal "rest" della scheda
+/* Fit Planner — app.js (GitHub Pages /BET-STATS/)
+   ✅ Modalità Sessione fullscreen
+   ✅ Timer recupero automatico dall'esercizio
 */
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("/BET-STATS/sw.js").catch(() => {});
 }
 
 const $ = (id) => document.getElementById(id);
@@ -41,25 +40,19 @@ function toast(msg){
 
 let state = loadState();
 
-/* -------------------- Utils: rest parsing -------------------- */
+/* -------------------- rest parsing -------------------- */
 function parseRestToSeconds(rest){
   if (!rest) return 90;
   const s = String(rest).trim();
 
-  // "2:30"
   if (s.includes(":")){
     const [m,sec] = s.split(":");
     const mm = Number(m), ss = Number(sec);
     if (isFinite(mm) && isFinite(ss)) return Math.max(0, mm*60 + ss);
   }
-
-  // "90''" or "90”" etc
   const onlyNums = s.replace(/[^\d]/g, "");
   const n = Number(onlyNums);
-  if (isFinite(n) && n > 0){
-    // if looks like minutes "230" unlikely; treat as seconds
-    return n;
-  }
+  if (isFinite(n) && n > 0) return n;
   return 90;
 }
 
@@ -70,7 +63,7 @@ function fmtMMSS(sec){
   return String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
 }
 
-/* -------------------- Default workout (4gg) -------------------- */
+/* -------------------- Default workout -------------------- */
 function defaultWorkout4Days(){
   return {
     name: "Ipertrofia 4 giorni (Upper/Lower)",
@@ -131,7 +124,7 @@ function defaultWorkout4Days(){
   };
 }
 
-/* -------------------- Default diet (placeholder routine) -------------------- */
+/* -------------------- Default diet (placeholder) -------------------- */
 function defaultDietWeek(){
   const day = {
     meals: {
@@ -162,7 +155,7 @@ function defaultDietWeek(){
   return { name:"Routine massa pulita", week:Array.from({length:7},()=>structuredClone(day)) };
 }
 
-/* -------------------- Tabs / Views -------------------- */
+/* -------------------- Views -------------------- */
 function setView(view){
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
@@ -194,7 +187,6 @@ function renderDayPreview(){
   const box = $("dayPreview");
   const sel = $("daySelect");
   if (!box || !sel || !state.workoutPlan) return;
-
   const day = state.workoutPlan.days.find(d => d.id === sel.value);
   if (!day) return;
 
@@ -255,13 +247,11 @@ function timerSet(seconds){
   timer.remaining = Math.max(0, Math.floor(seconds));
   $("timerTime").textContent = fmtMMSS(timer.remaining);
 }
-
 function timerStop(){
   timer.running = false;
   clearInterval(timer.interval);
   timer.interval = null;
 }
-
 function timerStart(){
   if (timer.running) return;
   timer.running = true;
@@ -274,7 +264,6 @@ function timerStart(){
     }
   }, 1000);
 }
-
 function timerAutoFromExercise(){
   const s = activeSession();
   if (!s) return;
@@ -310,7 +299,6 @@ function renderSession(){
   const unit = it.unit === "sec" ? "sec" : "reps";
   $("exTarget").textContent = `Target: ${targ.sets}x ${targ.repMin}-${targ.repMax} ${unit} • RIR ${targ.rir} • Rec ${targ.rest}`;
 
-  // sets
   const box = $("setsBox");
   box.innerHTML = "";
   it.sets.forEach((st, idx) => {
@@ -339,7 +327,6 @@ function renderSession(){
     box.appendChild(row);
   });
 
-  // set timer display to current exercise rest if timer not running and remaining==0
   if (!timer.running && timer.remaining === 0){
     timerSet(parseRestToSeconds(it.target.rest));
   }
@@ -361,34 +348,28 @@ document.addEventListener("input", (e) => {
   if (!s) return;
   const it = s.items[state.activeExIndex];
   const idx = Number(inp.dataset.idx);
-  const f = inp.dataset.f;
-  it.sets[idx][f] = inp.value;
+  it.sets[idx][inp.dataset.f] = inp.value;
   saveState();
 });
 
 function saveCurrentSetAndAutoTimer(){
   const s = activeSession();
   if (!s) return;
-
   const it = s.items[state.activeExIndex];
   const idx = state.activeSetIndex;
   const st = it.sets[idx];
 
-  // mini-validazione
   if (!String(st.reps || "").trim()){
     toast("Inserisci reps/secondi");
     return;
   }
-  // se kg vuoto ok (bodyweight), rir consigliato ma non obbligatorio
   toast(`Serie ${idx+1} salvata`);
 
-  // passa alla serie successiva se esiste, altrimenti resta
   if (idx < it.sets.length - 1){
     state.activeSetIndex = idx + 1;
   }
   saveState();
 
-  // timer automatico dal recupero dell'esercizio
   timerAutoFromExercise();
   renderSession();
 }
@@ -400,7 +381,6 @@ function nextExercise(){
     state.activeExIndex++;
     state.activeSetIndex = 0;
     saveState();
-    // set timer to new exercise rest (non parte subito: parte quando salvi una serie)
     timerStop();
     timerSet(parseRestToSeconds(s.items[state.activeExIndex].target.rest));
     renderSession();
@@ -423,14 +403,13 @@ function prevExercise(){
 }
 
 $("btnSaveSet")?.addEventListener("click", saveCurrentSetAndAutoTimer);
-$("btnNextAfterSave")?.addEventListener("click", () => { nextExercise(); });
-
+$("btnNextAfterSave")?.addEventListener("click", nextExercise);
 $("btnNextEx")?.addEventListener("click", nextExercise);
 $("btnPrevEx")?.addEventListener("click", prevExercise);
 
 $("btnSessionExit")?.addEventListener("click", () => {
   closeSessionUI();
-  state.activeSessionId = null; // “esci” = non in sessione (i dati restano salvati)
+  state.activeSessionId = null;
   saveState();
 });
 
@@ -447,12 +426,11 @@ $("btnSessionFinish")?.addEventListener("click", () => {
   toast("Sessione chiusa e salvata");
 });
 
-/* Timer buttons */
 $("btnTimerStart")?.addEventListener("click", timerStart);
 $("btnTimerPause")?.addEventListener("click", () => { timerStop(); toast("Timer in pausa"); });
 $("btnTimerSkip")?.addEventListener("click", () => { timerStop(); timerSet(0); toast("Recupero saltato"); });
 
-/* -------------------- Diet UI (lasciata semplice) -------------------- */
+/* -------------------- Diet (base) -------------------- */
 function populateDietDays(){
   const sel = $("dietDaySelect");
   if (!sel) return;
@@ -465,21 +443,18 @@ function populateDietDays(){
     sel.appendChild(o);
   }
 }
-
 function renderDietEditor(){
   const box = $("dietEditor");
   const daySel = $("dietDaySelect");
   const mealSel = $("mealSelect");
-  if (!box || !daySel || !mealSel) return;
-  if (!state.dietPlan) return;
+  if (!box || !daySel || !mealSel || !state.dietPlan) return;
 
   const di = Number(daySel.value);
   const mi = Number(mealSel.value);
-  const day = state.dietPlan.week[di];
-  const items = day.meals[mi] || [];
+  const items = state.dietPlan.week[di].meals[mi] || [];
 
   box.innerHTML = "";
-  items.forEach((it, idx) => {
+  items.forEach((it) => {
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
@@ -487,45 +462,18 @@ function renderDietEditor(){
         <div class="itemTitle">${it.food}</div>
         <div class="badge">${it.qty} ${it.unit}</div>
       </div>
-      <div class="row">
-        <label class="field" style="min-width:220px">
-          <span>Alimento</span>
-          <input data-d="${di}" data-m="${mi}" data-idx="${idx}" data-f="food" value="${it.food}">
-        </label>
-        <label class="field" style="min-width:120px">
-          <span>Quantità</span>
-          <input inputmode="decimal" data-d="${di}" data-m="${mi}" data-idx="${idx}" data-f="qty" value="${it.qty}">
-        </label>
-        <label class="field" style="min-width:120px">
-          <span>Unità</span>
-          <input data-d="${di}" data-m="${mi}" data-idx="${idx}" data-f="unit" value="${it.unit}">
-        </label>
-      </div>
     `;
     box.appendChild(div);
   });
 }
 
-document.addEventListener("input", (e) => {
-  const inp = e.target.closest("#dietEditor input[data-d][data-m][data-idx][data-f]");
-  if (!inp) return;
-  const d = Number(inp.dataset.d), m = Number(inp.dataset.m), idx = Number(inp.dataset.idx);
-  const f = inp.dataset.f;
-  const item = state.dietPlan?.week?.[d]?.meals?.[m]?.[idx];
-  if (!item) return;
-  item[f] = (f === "qty") ? Number(inp.value || 0) : inp.value;
-  saveState();
-});
-
-/* -------------------- Grocery (alert semplice) -------------------- */
+/* Grocery simple */
 function generateGrocery(){
   if (!state.dietPlan) return null;
   const agg = new Map();
   for (let d=0; d<7; d++){
-    const day = state.dietPlan.week[d];
     for (let m=1; m<=5; m++){
-      const items = day.meals[m] || [];
-      for (const it of items){
+      for (const it of (state.dietPlan.week[d].meals[m] || [])){
         const key = `${it.food}||${it.unit}`;
         agg.set(key, (agg.get(key)||0) + Number(it.qty||0));
       }
@@ -536,7 +484,6 @@ function generateGrocery(){
     return {food,qty,unit};
   }).sort((a,b)=>a.food.localeCompare(b.food));
 }
-
 function showGrocery(){
   const list = generateGrocery();
   if (!list){ toast("Carica prima una dieta"); return; }
@@ -566,7 +513,6 @@ function renderHistory(){
     box.appendChild(div);
   });
 }
-
 function renderPR(){
   const box = $("prBox");
   if (!box) return;
@@ -583,12 +529,10 @@ function renderPR(){
       }
     }
   }
-
   if (!pr.size){
     box.innerHTML = `<div class="muted">Inserisci qualche sessione per vedere i PR.</div>`;
     return;
   }
-
   Array.from(pr.entries()).sort((a,b)=>b[1]-a[1]).slice(0,40).forEach(([ex,kg])=>{
     const div = document.createElement("div");
     div.className = "item";
@@ -608,7 +552,7 @@ function homeRefresh(){
   $("homeSessions").textContent = String(state.sessions.length);
   $("homePlanName").textContent = state.workoutPlan?.name || "—";
 
-  const dow = new Date().getDay(); // 0 dom ... 6 sab
+  const dow = new Date().getDay();
   let today = "Riposo";
   if (state.workoutPlan){
     const map = {1:"mon",2:"tue",4:"thu",5:"fri"};
@@ -646,7 +590,7 @@ $("btnSaveSettings")?.addEventListener("click", () => {
   toast("Impostazioni salvate");
 });
 
-/* -------------------- Buttons: load, start, diet, backup -------------------- */
+/* -------------------- Buttons -------------------- */
 $("btnLoadDefault")?.addEventListener("click", () => {
   state.workoutPlan = defaultWorkout4Days();
   saveState();
@@ -655,7 +599,6 @@ $("btnLoadDefault")?.addEventListener("click", () => {
   homeRefresh();
   toast("Scheda caricata");
 });
-
 $("btnResetWorkout")?.addEventListener("click", () => {
   if (!confirm("Reset scheda?")) return;
   state.workoutPlan = null;
@@ -665,7 +608,6 @@ $("btnResetWorkout")?.addEventListener("click", () => {
   homeRefresh();
   toast("Scheda resettata");
 });
-
 $("daySelect")?.addEventListener("change", renderDayPreview);
 
 $("btnStartDay")?.addEventListener("click", () => {
@@ -674,17 +616,13 @@ $("btnStartDay")?.addEventListener("click", () => {
   if (!id) return;
   startSession(id);
 });
-
 $("btnStartSession")?.addEventListener("click", () => {
   if (!state.workoutPlan){ toast("Carica prima la scheda"); return; }
-  // Avvia automaticamente il giorno “giusto” in base al calendario (lun/mar/gio/ven)
   const dow = new Date().getDay();
   const map = {1:"mon",2:"tue",4:"thu",5:"fri"};
   const id = map[dow] || state.workoutPlan.days[0].id;
   startSession(id);
 });
-
-$("btnSessionFinish")?.addEventListener("click", () => {}); // already set above
 
 $("btnTodayMeals")?.addEventListener("click", () => {
   setView("diet");
@@ -718,7 +656,6 @@ $("btnExport")?.addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
-
 $("fileImport")?.addEventListener("change", async (e) => {
   const f = e.target.files?.[0];
   if (!f) return;
@@ -753,7 +690,6 @@ function boot(){
   renderPR();
   homeRefresh();
 
-  // Se c'era una sessione attiva (es. refresh), ripristina la UI dedicata
   if (state.activeSessionId){
     openSessionUI();
     renderSession();
