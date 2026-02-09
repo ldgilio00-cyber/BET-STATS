@@ -1,24 +1,30 @@
 :root{
-  --bg:#0b1220;
-  --card:#0f172a;
-  --text:#e5e7eb;
-  --muted:#94a3b8;
-  --line:#1f2a44;
+  --bg:#f6f7fb;
+  --bg2:#eef2ff;
+  --card:#ffffff;
+  --text:#0f172a;
+  --muted:#475569;
+  --line:#e2e8f0;
 
   --primary:#2563eb;
+  --primarySoft: rgba(37,99,235,.12);
   --danger:#ef4444;
+  --dangerSoft: rgba(239,68,68,.12);
 
   --radius:18px;
+  --shadow: 0 10px 30px rgba(15,23,42,.08);
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
+
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
-  background: radial-gradient(1000px 500px at 20% -10%, rgba(37,99,235,.20), transparent 60%),
-              radial-gradient(900px 450px at 90% 0%, rgba(29,78,216,.18), transparent 55%),
-              linear-gradient(180deg, #0b1220 0%, #070c16 100%);
+  background:
+    radial-gradient(900px 500px at 20% -10%, rgba(37,99,235,.10), transparent 60%),
+    radial-gradient(900px 450px at 90% 0%, rgba(99,102,241,.10), transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, #ffffff 100%);
   color:var(--text);
 }
 
@@ -32,10 +38,11 @@ body.session-open .wrap{
   display:none !important;
 }
 
+/* ---------- Topbar ---------- */
 .topbar{
   position:sticky; top:0; z-index:10;
   padding:14px 14px 10px;
-  background:rgba(11,18,32,.92);
+  background:rgba(255,255,255,.92);
   border-bottom:1px solid var(--line);
   backdrop-filter: blur(10px);
 }
@@ -43,10 +50,12 @@ body.session-open .wrap{
 .brand{display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .logo{
   width:42px;height:42px;border-radius:14px;
-  background:linear-gradient(145deg,var(--primary),#0b1220);
+  background:linear-gradient(145deg,var(--primary),#60a5fa);
   display:grid;place-items:center;
   font-weight:900;
-  border:1px solid rgba(37,99,235,.4);
+  color:#fff;
+  border:1px solid rgba(37,99,235,.25);
+  box-shadow: 0 8px 18px rgba(37,99,235,.18);
 }
 .brandText .title{font-weight:900}
 .brandText .subtitle{font-size:12px;color:var(--muted); margin-top:2px}
@@ -54,42 +63,45 @@ body.session-open .wrap{
 .tabs{display:flex; gap:8px; overflow:auto; padding-bottom:4px}
 .tab{
   border:1px solid var(--line);
-  background:rgba(15,23,42,.65);
+  background:rgba(255,255,255,.85);
   color:var(--text);
   padding:10px 12px;
   border-radius:999px;
   cursor:pointer;
-  font-weight:800;
+  font-weight:850;
   white-space:nowrap;
 }
 .tab.active{
-  background:rgba(37,99,235,.22);
-  border-color:rgba(37,99,235,.5);
+  background: var(--primarySoft);
+  border-color: rgba(37,99,235,.35);
+  color: #0b1b4a;
 }
 
+/* ---------- Layout ---------- */
 .wrap{max-width:1100px; margin:0 auto; padding:14px}
 .grid{display:grid; gap:14px}
 @media(min-width:900px){ .grid{grid-template-columns:1fr 1fr} }
 
 .card{
-  background:rgba(15,23,42,.78);
+  background:rgba(255,255,255,.92);
   border:1px solid var(--line);
   border-radius:var(--radius);
   padding:14px;
+  box-shadow: var(--shadow);
 }
 
 .hero{
   padding:16px;
-  background:linear-gradient(180deg, rgba(37,99,235,.15), rgba(15,23,42,.78));
-  border-color:rgba(37,99,235,.35);
+  background:linear-gradient(180deg, rgba(37,99,235,.10), rgba(255,255,255,.92));
+  border-color:rgba(37,99,235,.25);
 }
 .heroTop{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
-.heroTitle{font-size:14px; color:var(--muted); font-weight:700}
+.heroTitle{font-size:14px; color:var(--muted); font-weight:800}
 .heroSub{font-size:20px; font-weight:950; margin-top:4px}
 .pill{
   padding:8px 12px; border-radius:999px;
-  border:1px solid rgba(148,163,184,.35);
-  background:rgba(11,18,32,.55);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.85);
   font-weight:900;
 }
 
@@ -99,7 +111,7 @@ body.session-open .wrap{
   border:1px solid var(--line);
   border-radius:14px;
   padding:12px;
-  background:rgba(11,18,32,.55);
+  background:rgba(255,255,255,.85);
 }
 .miniLabel{font-size:12px; color:var(--muted)}
 .miniValue{font-size:18px; font-weight:950; margin-top:4px}
@@ -111,77 +123,90 @@ body.session-open .wrap{
 .actions{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 @media(min-width:700px){ .actions{grid-template-columns:1fr 1fr 1fr 1fr} }
 
+/* ---------- Inputs ---------- */
 .field{display:flex; flex-direction:column; gap:6px; min-width:140px}
-.field span{font-size:12px; color:var(--muted)}
+.field span{font-size:12px; color:var(--muted); font-weight:800}
 .field input,.field select,.field textarea{
-  background:rgba(11,18,32,.70);
+  background:#ffffff;
   border:1px solid var(--line);
   color:var(--text);
   border-radius:14px;
   padding:10px 12px;
   outline:none;
 }
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color: rgba(37,99,235,.45);
+  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+}
 .field textarea{min-height:72px; resize:vertical}
 
+/* ---------- Buttons ---------- */
 .btn{
   border:1px solid var(--line);
-  background:rgba(11,18,32,.72);
+  background:#ffffff;
   color:var(--text);
   padding:10px 12px;
   border-radius:14px;
   cursor:pointer;
   font-weight:900;
 }
-.btn:hover{filter:brightness(1.07)}
+.btn:hover{filter:brightness(1.02)}
 .btn.primary{
-  background:linear-gradient(180deg, rgba(37,99,235,.45), rgba(29,78,216,.25));
-  border-color:rgba(37,99,235,.55);
+  background: linear-gradient(180deg, rgba(37,99,235,.16), rgba(37,99,235,.08));
+  border-color: rgba(37,99,235,.35);
+  color:#0b1b4a;
 }
-.btn.danger{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.45)}
+.btn.danger{
+  background: var(--dangerSoft);
+  border-color: rgba(239,68,68,.35);
+  color:#7f1d1d;
+}
 .btn.ghost{background:transparent}
 .btn.big{padding:12px 14px; border-radius:16px; font-size:15px}
 
+/* ---------- Lists ---------- */
 .list{display:flex; flex-direction:column; gap:10px; margin-top:10px}
 .item{
   border:1px solid var(--line);
   border-radius:16px;
   padding:12px;
-  background:rgba(11,18,32,.62);
+  background:rgba(255,255,255,.90);
 }
 .itemTop{display:flex; justify-content:space-between; gap:10px; align-items:center}
 .itemTitle{font-weight:950}
 .badge{
   font-size:12px; padding:6px 10px; border-radius:999px;
-  border:1px solid rgba(148,163,184,.25);
+  border:1px solid var(--line);
   color:var(--muted);
+  background: rgba(248,250,252,.95);
 }
 .tip{
   border:1px solid var(--line);
   border-radius:16px;
   padding:12px;
-  background:rgba(11,18,32,.55);
+  background:rgba(248,250,252,.95);
   margin-top:10px;
 }
 
+/* ---------- KPI ---------- */
 .kpiRow{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 @media(min-width:900px){ .kpiRow{grid-template-columns:1fr 1fr 1fr 1fr} }
 .kpi{
   border:1px solid var(--line);
   border-radius:16px;
   padding:12px;
-  background:rgba(11,18,32,.55);
+  background:rgba(255,255,255,.92);
 }
-.kpiLabel{font-size:12px; color:var(--muted)}
+.kpiLabel{font-size:12px; color:var(--muted); font-weight:800}
 .kpiValue{font-size:18px; font-weight:950; margin-top:4px}
 
-/* ---------- SESSION MODE (fullscreen) ---------- */
+/* ================= SESSION (Light) ================= */
 .session{
   position:fixed; inset:0; z-index:50;
-  background:linear-gradient(180deg, rgba(11,18,32,1), rgba(7,12,22,1)); /* niente trasparenza */
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
   display:flex;
   flex-direction:column;
 
-  /* Safe area iPhone */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -190,20 +215,23 @@ body.session-open .wrap{
   display:flex; justify-content:space-between; gap:10px; align-items:center;
   padding:14px;
   border-bottom:1px solid var(--line);
-  background:rgba(11,18,32,1);
+  background: rgba(255,255,255,.94);
+  backdrop-filter: blur(10px);
 }
 .sessionTitle{text-align:center; flex:1}
 .sessionDay{font-weight:950}
 .sessionDate{font-size:12px; color:var(--muted); margin-top:2px}
 
+/* Timer card */
 .timerCard{
   margin:14px;
-  border:1px solid rgba(37,99,235,.35);
-  background:linear-gradient(180deg, rgba(37,99,235,.16), rgba(11,18,32,.85));
+  border:1px solid rgba(37,99,235,.22);
+  background: linear-gradient(180deg, rgba(37,99,235,.10), rgba(255,255,255,.90));
   border-radius:22px;
   padding:14px;
+  box-shadow: var(--shadow);
 }
-.timerLabel{font-size:12px; letter-spacing:.12em; color:rgba(229,231,235,.75); font-weight:900}
+.timerLabel{font-size:12px; letter-spacing:.12em; color:rgba(15,23,42,.70); font-weight:950}
 .timerTime{font-size:44px; font-weight:950; margin-top:6px; line-height:1}
 .timerRow{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
 
@@ -211,8 +239,10 @@ body.session-open .wrap{
   flex:1;
   overflow:auto;
   padding:0 14px 14px;
+  -webkit-overflow-scrolling: touch;
 }
 
+/* Nav esercizio */
 .sessionNav{
   display:flex; align-items:center; gap:10px;
   margin-top:6px;
@@ -221,103 +251,14 @@ body.session-open .wrap{
 .exName{font-size:18px; font-weight:950}
 .exTarget{font-size:12px; color:var(--muted); margin-top:2px}
 
-/* Set cards: più pulito su mobile */
-.sets{
-  margin-top:12px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.setRow{
-  display:grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap:10px;
-  border:1px solid var(--line);
-  border-radius:18px;
-  padding:12px;
-  background:rgba(11,18,32,.78);
-}
-.setIdx{
-  grid-column:1/-1;
-  font-weight:950;
-  color:rgba(229,231,235,.9);
-}
-
-.sessionBottom{
-  position:sticky;
-  bottom:0;
-  background:linear-gradient(180deg, transparent, rgba(11,18,32,.95) 35%, rgba(11,18,32,1));
-  padding:12px 0 6px;
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-.toast{
-  position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-  background:rgba(2,6,23,.92);
-  border:1px solid var(--line);
-  padding:10px 12px;
-  border-radius:14px;
-  max-width:92vw;
-  opacity:0;
-  pointer-events:none;
-  transition:opacity .18s ease, transform .18s ease;
-  z-index:60;
-}
-.toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
-
-/* ===== iPhone / Safari FIX: bottom bar + safe-area ===== */
-
-/* più spazio sotto, evita che i contenuti finiscano dietro la barra azioni */
-.sessionBody{
-  padding-bottom: 140px; /* spazio per barra fixed + safe-area */
-}
-
-/* barra azioni: fissa in basso, stile “app” */
-.sessionBottom{
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  padding: 12px 14px calc(env(safe-area-inset-bottom) + 14px);
-  background: rgba(11,18,32,.92);
-  border-top: 1px solid var(--line);
-  backdrop-filter: blur(10px);
-
-  display:flex;
-  gap:10px;
-  flex-wrap:nowrap;
-  z-index: 70;
-}
-
-/* bottoni della barra: larghi e coerenti */
-.sessionBottom .btn{
-  flex: 1;
-  min-width: 0;
-  border-radius: 16px;
-  padding: 14px 14px;
-  font-size: 15px;
-}
-
-/* migliora scroll su iOS */
-.sessionBody{
-  -webkit-overflow-scrolling: touch;
-}
-
-/* se vuoi più “aria” sopra i set */
-.sets{
-  margin-bottom: 10px;
-}
-
-/* ===== Single-set UI (più pulita) ===== */
+/* -------- Single set card (se usi la versione 1-serie) -------- */
 .singleSet{ margin-top: 12px; }
 .singleCard{
   border:1px solid var(--line);
   border-radius: 18px;
   padding: 14px;
-  background: rgba(11,18,32,.78);
+  background: rgba(255,255,255,.92);
+  box-shadow: var(--shadow);
 }
 .singleTop{
   display:flex;
@@ -336,12 +277,48 @@ body.session-open .wrap{
   .singleGrid{ grid-template-columns: 1fr 1fr 1fr; }
 }
 
-/* ===== Tema più “chiaro” (soft) solo nella sessione ===== */
-.session{
-  background: linear-gradient(180deg, rgba(16,24,38,1), rgba(10,16,28,1));
-}
-.timerCard{
-  background: linear-gradient(180deg, rgba(37,99,235,.14), rgba(11,18,32,.85));
+/* Bottom bar FIX (iPhone) */
+.sessionBody{
+  padding-bottom: 150px;
 }
 
-/* bottom bar già fixed (se hai il patch precedente) resta ok */
+.sessionBottom{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  padding: 12px 14px calc(env(safe-area-inset-bottom) + 14px);
+  background: rgba(255,255,255,.94);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+
+  display:flex;
+  gap:10px;
+  flex-wrap:nowrap;
+  z-index: 70;
+}
+
+.sessionBottom .btn{
+  flex: 1;
+  min-width: 0;
+  border-radius: 16px;
+  padding: 14px 14px;
+  font-size: 15px;
+}
+
+/* Toast */
+.toast{
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+  background:rgba(15,23,42,.92);
+  border:1px solid rgba(226,232,240,.25);
+  padding:10px 12px;
+  border-radius:14px;
+  max-width:92vw;
+  color:#fff;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;
+  z-index:80;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
