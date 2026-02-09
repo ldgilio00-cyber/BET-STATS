@@ -1,3 +1,9 @@
+/* Fit Planner — app.js
+   ✅ Sessione 1 serie alla volta + timer recupero
+   ✅ Editor Scheda (giorni + esercizi)
+   ✅ Editor Dieta (giorni + pasti + alimenti)
+*/
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/BET-STATS/sw.js").catch(() => {});
 }
@@ -5,7 +11,7 @@ if ("serviceWorker" in navigator) {
 const $ = (id) => document.getElementById(id);
 const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const KEY = "fitplanner_v3";
+const KEY = "fitplanner_v4";
 
 const DEFAULT = {
   settings: { weightKg: 68, mealsPerDay: 5, kcal: 2900, p: 140, c: 380, f: 80 },
@@ -14,7 +20,8 @@ const DEFAULT = {
   sessions: [],
   activeSessionId: null,
   activeExIndex: 0,
-  activeSetIndex: 0
+  activeSetIndex: 0,
+  ui: { planEditDayId: null, dietEditDayIndex: 0, dietEditMeal: 1 }
 };
 
 function safeParse(raw){ try { return JSON.parse(raw); } catch { return null; } }
@@ -35,7 +42,9 @@ function toast(msg){
 
 let state = loadState();
 
-/* ---------- rest parsing ---------- */
+/* ---------- helpers ---------- */
+function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
 function parseRestToSeconds(rest){
   if (!rest) return 90;
   const s = String(rest).trim();
@@ -63,38 +72,22 @@ function defaultWorkout4Days(){
       { id:"mon", name:"Lunedì – UPPER 1", exercises:[
         { ex:"Panca piana bilanciere", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
         { ex:"Trazioni zavorrate", sets:4, repMin:6, repMax:8, rir:"1-2", rest:"2:00" },
-        { ex:"Panca inclinata manubri", sets:3, repMin:8, repMax:10, rir:"1-2", rest:"90" },
-        { ex:"Rematore bilanciere (o T-bar)", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-        { ex:"Alzate laterali", sets:3, repMin:12, repMax:20, rir:"0-1", rest:"60" },
-        { ex:"Curl manubri inclinato", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"60" },
-        { ex:"Pushdown cavo", sets:2, repMin:10, repMax:12, rir:"0-1", rest:"60" }
+        { ex:"Panca inclinata manubri", sets:3, repMin:8, repMax:10, rir:"1-2", rest:"90" }
       ]},
       { id:"tue", name:"Martedì – LOWER 1", exercises:[
         { ex:"Squat", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
         { ex:"Stacco rumeno (RDL)", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-        { ex:"Leg press", sets:3, repMin:10, repMax:12, rir:"1", rest:"90" },
-        { ex:"Leg curl", sets:3, repMin:10, repMax:14, rir:"0-1", rest:"75" },
-        { ex:"Calf raise in piedi", sets:4, repMin:8, repMax:12, rir:"0-1", rest:"60" },
-        { ex:"Crunch al cavo", sets:3, repMin:10, repMax:15, rir:"1", rest:"60" }
+        { ex:"Leg press", sets:3, repMin:10, repMax:12, rir:"1", rest:"90" }
       ]},
       { id:"thu", name:"Giovedì – UPPER 2", exercises:[
         { ex:"Military press", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:00" },
         { ex:"Lat machine presa larga", sets:3, repMin:8, repMax:12, rir:"1-2", rest:"90" },
-        { ex:"Panca inclinata bilanciere", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-        { ex:"Rematore chest-supported", sets:3, repMin:8, repMax:12, rir:"1", rest:"90" },
-        { ex:"Croci ai cavi", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"60" },
-        { ex:"Face pull", sets:2, repMin:12, repMax:20, rir:"0-1", rest:"60" },
-        { ex:"Curl EZ", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"60" },
-        { ex:"French press", sets:3, repMin:8, repMax:12, rir:"0-1", rest:"75" }
+        { ex:"Croci ai cavi", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"60" }
       ]},
       { id:"fri", name:"Venerdì – LOWER 2", exercises:[
         { ex:"Stacco tecnico", sets:3, repMin:3, repMax:5, rir:"2", rest:"2:30" },
         { ex:"Hip thrust", sets:4, repMin:6, repMax:10, rir:"1-2", rest:"2:00" },
-        { ex:"Front squat", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-        { ex:"Bulgarian split squat", sets:3, repMin:8, repMax:10, rir:"1", rest:"90" },
-        { ex:"Leg curl seduto", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"75" },
-        { ex:"Calf raise seduto", sets:4, repMin:12, repMax:20, rir:"0-1", rest:"60" },
-        { ex:"Plank zavorrato", sets:3, repMin:30, repMax:45, rir:"-", rest:"60", unit:"sec" }
+        { ex:"Calf raise seduto", sets:4, repMin:12, repMax:20, rir:"0-1", rest:"60" }
       ]}
     ]
   };
@@ -110,7 +103,7 @@ function defaultDietWeek(){
       5:[{food:"Uova intere",qty:3,unit:"pz"},{food:"Albumi",qty:200,unit:"g"},{food:"Patate",qty:400,unit:"g"},{food:"Olio EVO",qty:10,unit:"g"}]
     }
   };
-  return { name:"Routine massa pulita", week:Array.from({length:7},()=>structuredClone(day)) };
+  return { name:"Routine massa pulita", week:Array.from({length:7},()=>clone(day)) };
 }
 
 /* ---------- views ---------- */
@@ -119,6 +112,7 @@ function setView(view){
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   document.getElementById("view-"+view)?.classList.remove("hidden");
 }
+
 document.addEventListener("click",(e)=>{
   const tab=e.target.closest(".tab"); if(tab) setView(tab.dataset.view);
   const jump=e.target.closest("[data-jump]"); if(jump) setView(jump.dataset.jump);
@@ -132,7 +126,9 @@ function populateDays(){
     const o=document.createElement("option");
     o.value=d.id; o.textContent=d.name; sel.appendChild(o);
   }
+  if (!sel.value && state.workoutPlan.days[0]) sel.value = state.workoutPlan.days[0].id;
 }
+
 function renderDayPreview(){
   const box=$("dayPreview"), sel=$("daySelect");
   if(!box||!sel||!state.workoutPlan) return;
@@ -264,7 +260,6 @@ function renderSingleSet(){
     </div>
   `;
 
-  // bind input
   $("inKg").addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
   $("inReps").addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
   $("inRir").addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
@@ -372,7 +367,7 @@ $("btnTimerStart")?.addEventListener("click", timerStart);
 $("btnTimerPause")?.addEventListener("click", ()=>{ timerStop(); toast("Timer in pausa"); });
 $("btnTimerSkip")?.addEventListener("click", ()=>{ timerStop(); timerSet(0); toast("Recupero saltato"); });
 
-/* ---------- diet ---------- */
+/* ---------- DIETA (view base) ---------- */
 function populateDietDays(){
   const sel=$("dietDaySelect"); if(!sel) return;
   sel.innerHTML="";
@@ -424,7 +419,7 @@ function showGrocery(){
   alert("LISTA SPESA SETTIMANALE\n\n"+list.map(x=>`• ${x.food}: ${x.qty} ${x.unit}`).join("\n"));
 }
 
-/* progress */
+/* ---------- PROGRESS ---------- */
 function renderHistory(){
   const box=$("sessionHistory"); if(!box) return;
   box.innerHTML="";
@@ -463,7 +458,7 @@ function renderPR(){
   });
 }
 
-/* home & settings */
+/* ---------- HOME & SETTINGS ---------- */
 function homeRefresh(){
   $("homeKcal").textContent=`${state.settings.kcal} kcal`;
   $("homeSessions").textContent=String(state.sessions.length);
@@ -492,6 +487,385 @@ function renderSettings(){
   $("fTarget").textContent=state.settings.f+" g";
 }
 
+/* ---------- EDITOR SCHEDA ---------- */
+function planById(id){
+  return state.workoutPlan.days.find(d=>d.id===id) || null;
+}
+
+function populatePlanDaySelect(){
+  const sel = $("planDaySelect"); if(!sel || !state.workoutPlan) return;
+  sel.innerHTML = "";
+  state.workoutPlan.days.forEach(d=>{
+    const o=document.createElement("option");
+    o.value=d.id; o.textContent=d.name;
+    sel.appendChild(o);
+  });
+  if (!state.ui.planEditDayId && state.workoutPlan.days[0]) state.ui.planEditDayId = state.workoutPlan.days[0].id;
+  sel.value = state.ui.planEditDayId || (state.workoutPlan.days[0]?.id || "");
+}
+
+function renderPlanDaysList(){
+  const box = $("planDaysList"); if(!box || !state.workoutPlan) return;
+  box.innerHTML = "";
+  state.workoutPlan.days.forEach((d,idx)=>{
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML = `
+      <div class="itemTop">
+        <div class="itemTitle">${d.name}</div>
+        <div class="badge">${d.exercises.length} esercizi</div>
+      </div>
+      <div class="row">
+        <button class="iconBtn primary" data-plan-select="${d.id}">Seleziona</button>
+        <button class="iconBtn" data-day-up="${d.id}">↑</button>
+        <button class="iconBtn" data-day-down="${d.id}">↓</button>
+        <button class="iconBtn danger" data-day-del="${d.id}">Elimina</button>
+      </div>
+    `;
+    box.appendChild(div);
+  });
+}
+
+function renderPlanExercisesList(){
+  const box = $("planExercisesList"); if(!box || !state.workoutPlan) return;
+  const dayId = $("planDaySelect")?.value || state.ui.planEditDayId;
+  const day = planById(dayId);
+  if (!day){ box.innerHTML = `<div class="muted">Seleziona un giorno.</div>`; return; }
+  state.ui.planEditDayId = day.id;
+  saveState();
+
+  box.innerHTML = "";
+  day.exercises.forEach((ex,idx)=>{
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML = `
+      <div class="itemTop">
+        <div class="itemTitle">${idx+1}. ${ex.ex}</div>
+        <div class="badge">${ex.sets}x ${ex.repMin}-${ex.repMax} • RIR ${ex.rir} • ${ex.rest}</div>
+      </div>
+      <div class="row">
+        <button class="iconBtn" data-ex-up="${idx}">↑</button>
+        <button class="iconBtn" data-ex-down="${idx}">↓</button>
+        <button class="iconBtn danger" data-ex-del="${idx}">Elimina</button>
+      </div>
+    `;
+    box.appendChild(div);
+  });
+}
+
+function openPlanEditor(){
+  $("planName").value = state.workoutPlan?.name || "";
+  $("newDayName").value = "";
+  populatePlanDaySelect();
+  renderPlanDaysList();
+  renderPlanExercisesList();
+  setView("planedit");
+}
+
+function moveItem(arr, from, to){
+  if (to < 0 || to >= arr.length) return;
+  const x = arr.splice(from,1)[0];
+  arr.splice(to,0,x);
+}
+
+document.addEventListener("click",(e)=>{
+  // days list actions
+  const sel = e.target.closest("[data-plan-select]");
+  if (sel){
+    state.ui.planEditDayId = sel.dataset.planSelect;
+    saveState();
+    populatePlanDaySelect();
+    renderPlanExercisesList();
+    toast("Giorno selezionato");
+  }
+
+  const up = e.target.closest("[data-day-up]");
+  const dn = e.target.closest("[data-day-down]");
+  const del = e.target.closest("[data-day-del]");
+  if (up || dn || del){
+    const id = (up||dn||del).dataset.dayUp || (up||dn||del).dataset.dayDown || (up||dn||del).dataset.dayDel;
+    const i = state.workoutPlan.days.findIndex(d=>d.id===id);
+    if (i<0) return;
+
+    if (up) moveItem(state.workoutPlan.days, i, i-1);
+    if (dn) moveItem(state.workoutPlan.days, i, i+1);
+    if (del){
+      if (!confirm("Eliminare il giorno?")) return;
+      state.workoutPlan.days.splice(i,1);
+      if (state.ui.planEditDayId === id) state.ui.planEditDayId = state.workoutPlan.days[0]?.id || null;
+    }
+    saveState();
+    populatePlanDaySelect();
+    renderPlanDaysList();
+    renderPlanExercisesList();
+    populateDays();
+    renderDayPreview();
+    homeRefresh();
+  }
+
+  // exercise actions
+  const exUp = e.target.closest("[data-ex-up]");
+  const exDn = e.target.closest("[data-ex-down]");
+  const exDel = e.target.closest("[data-ex-del]");
+  if (exUp || exDn || exDel){
+    const dayId = $("planDaySelect")?.value || state.ui.planEditDayId;
+    const day = planById(dayId); if(!day) return;
+    const idx = Number((exUp||exDn||exDel).dataset.exUp || (exUp||exDn||exDel).dataset.exDown || (exUp||exDn||exDel).dataset.exDel);
+    if (!isFinite(idx)) return;
+
+    if (exUp) moveItem(day.exercises, idx, idx-1);
+    if (exDn) moveItem(day.exercises, idx, idx+1);
+    if (exDel){
+      if (!confirm("Eliminare esercizio?")) return;
+      day.exercises.splice(idx,1);
+    }
+    saveState();
+    renderPlanExercisesList();
+    populateDays();
+    renderDayPreview();
+  }
+});
+
+$("btnAddDay")?.addEventListener("click",()=>{
+  const name = $("newDayName").value.trim();
+  if(!name){ toast("Inserisci nome giorno"); return; }
+  const id = uid().slice(0,6);
+  state.workoutPlan.days.push({ id, name, exercises: [] });
+  state.ui.planEditDayId = id;
+  saveState();
+  $("newDayName").value = "";
+  populatePlanDaySelect();
+  renderPlanDaysList();
+  renderPlanExercisesList();
+  populateDays();
+  renderDayPreview();
+  toast("Giorno aggiunto");
+});
+
+$("planDaySelect")?.addEventListener("change",()=>{
+  state.ui.planEditDayId = $("planDaySelect").value;
+  saveState();
+  renderPlanExercisesList();
+});
+
+$("btnPlanSaveName")?.addEventListener("click",()=>{
+  state.workoutPlan.name = $("planName").value.trim() || "Scheda";
+  saveState();
+  homeRefresh();
+  toast("Nome scheda salvato");
+});
+
+$("btnAddExercise")?.addEventListener("click",()=>{
+  const dayId = $("planDaySelect").value;
+  const day = planById(dayId);
+  if(!day){ toast("Seleziona un giorno"); return; }
+
+  const ex = $("exNameIn").value.trim();
+  if(!ex){ toast("Inserisci nome esercizio"); return; }
+
+  const sets = Number($("exSetsIn").value || 0);
+  const repMin = Number($("exRepMinIn").value || 0);
+  const repMax = Number($("exRepMaxIn").value || 0);
+  const rir = $("exRirIn").value.trim() || "1-2";
+  const rest = $("exRestIn").value.trim() || "90";
+
+  if(!(sets>0 && repMin>0 && repMax>0)){ toast("Controlla serie e reps"); return; }
+
+  day.exercises.push({ ex, sets, repMin, repMax, rir, rest });
+  saveState();
+
+  $("exNameIn").value="";
+  renderPlanExercisesList();
+  populateDays();
+  renderDayPreview();
+  toast("Esercizio aggiunto");
+});
+
+$("btnDuplicateDay")?.addEventListener("click",()=>{
+  const dayId = $("planDaySelect").value;
+  const day = planById(dayId);
+  if(!day){ toast("Seleziona un giorno"); return; }
+  const copy = clone(day);
+  copy.id = uid().slice(0,6);
+  copy.name = day.name + " (copia)";
+  state.workoutPlan.days.push(copy);
+  state.ui.planEditDayId = copy.id;
+  saveState();
+  populatePlanDaySelect();
+  renderPlanDaysList();
+  renderPlanExercisesList();
+  populateDays();
+  renderDayPreview();
+  toast("Giorno duplicato");
+});
+
+$("btnPlanReset")?.addEventListener("click",()=>{
+  if(!confirm("Reset scheda?")) return;
+  state.workoutPlan = defaultWorkout4Days();
+  state.ui.planEditDayId = state.workoutPlan.days[0]?.id || null;
+  saveState();
+  openPlanEditor();
+  populateDays();
+  renderDayPreview();
+  homeRefresh();
+  toast("Scheda resettata");
+});
+
+$("btnPlanBack")?.addEventListener("click",()=>{
+  setView("workout");
+});
+
+/* ---------- EDITOR DIETA ---------- */
+function populateDietEditDays(){
+  const sel = $("dietEditDaySelect"); if(!sel) return;
+  sel.innerHTML = "";
+  const labels=["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+  for(let i=0;i<7;i++){
+    const o=document.createElement("option");
+    o.value=String(i);
+    o.textContent=labels[i];
+    sel.appendChild(o);
+  }
+  sel.value = String(state.ui.dietEditDayIndex || 0);
+}
+
+function renderDietFoodsList(){
+  const box = $("dietFoodsList");
+  if(!box || !state.dietPlan) return;
+  const di = Number($("dietEditDaySelect").value);
+  const mi = Number($("dietEditMealSelect").value);
+  state.ui.dietEditDayIndex = di;
+  state.ui.dietEditMeal = mi;
+  saveState();
+
+  const items = state.dietPlan.week[di].meals[mi] || [];
+  box.innerHTML = "";
+
+  items.forEach((it, idx)=>{
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML = `
+      <div class="itemTop">
+        <div class="itemTitle">${it.food}</div>
+        <div class="badge">${it.qty} ${it.unit}</div>
+      </div>
+      <div class="row">
+        <button class="iconBtn" data-food-up="${idx}">↑</button>
+        <button class="iconBtn" data-food-down="${idx}">↓</button>
+        <button class="iconBtn danger" data-food-del="${idx}">Elimina</button>
+      </div>
+    `;
+    box.appendChild(div);
+  });
+
+  if (!items.length){
+    box.innerHTML = `<div class="muted">Nessun alimento in questo pasto. Aggiungine uno sopra.</div>`;
+  }
+}
+
+document.addEventListener("click",(e)=>{
+  const up = e.target.closest("[data-food-up]");
+  const dn = e.target.closest("[data-food-down]");
+  const del = e.target.closest("[data-food-del]");
+  if (!(up||dn||del)) return;
+
+  const di = Number($("dietEditDaySelect").value);
+  const mi = Number($("dietEditMealSelect").value);
+  const arr = state.dietPlan.week[di].meals[mi] || [];
+  const idx = Number((up||dn||del).dataset.foodUp || (up||dn||del).dataset.foodDown || (up||dn||del).dataset.foodDel);
+
+  if (up) moveItem(arr, idx, idx-1);
+  if (dn) moveItem(arr, idx, idx+1);
+  if (del){
+    if(!confirm("Eliminare alimento?")) return;
+    arr.splice(idx,1);
+  }
+  state.dietPlan.week[di].meals[mi] = arr;
+  saveState();
+  renderDietFoodsList();
+  renderDietEditor();
+});
+
+function openDietEditor(){
+  $("dietName").value = state.dietPlan?.name || "";
+  populateDietEditDays();
+  $("dietEditMealSelect").value = String(state.ui.dietEditMeal || 1);
+  renderDietFoodsList();
+  setView("dietedit");
+}
+
+$("btnDietSaveName")?.addEventListener("click",()=>{
+  state.dietPlan.name = $("dietName").value.trim() || "Dieta";
+  saveState();
+  toast("Nome dieta salvato");
+});
+
+$("dietEditDaySelect")?.addEventListener("change", renderDietFoodsList);
+$("dietEditMealSelect")?.addEventListener("change", renderDietFoodsList);
+
+$("btnAddFood")?.addEventListener("click",()=>{
+  const di = Number($("dietEditDaySelect").value);
+  const mi = Number($("dietEditMealSelect").value);
+
+  const food = $("foodNameIn").value.trim();
+  const qty = Number($("foodQtyIn").value || 0);
+  const unit = $("foodUnitIn").value;
+
+  if(!food){ toast("Inserisci alimento"); return; }
+  if(!(qty>0)){ toast("Quantità non valida"); return; }
+
+  const arr = state.dietPlan.week[di].meals[mi] || [];
+  arr.push({ food, qty, unit });
+  state.dietPlan.week[di].meals[mi] = arr;
+  saveState();
+
+  $("foodNameIn").value="";
+  renderDietFoodsList();
+  renderDietEditor();
+  toast("Alimento aggiunto");
+});
+
+$("btnCopyDayToAll")?.addEventListener("click",()=>{
+  const di = Number($("dietEditDaySelect").value);
+  if(!confirm("Copiare questo giorno su tutti i giorni?")) return;
+  const dayCopy = clone(state.dietPlan.week[di]);
+  for(let i=0;i<7;i++) state.dietPlan.week[i] = clone(dayCopy);
+  saveState();
+  renderDietFoodsList();
+  renderDietEditor();
+  toast("Giorno copiato su tutti");
+});
+
+$("btnCopyMealToAllDays")?.addEventListener("click",()=>{
+  const di = Number($("dietEditDaySelect").value);
+  const mi = Number($("dietEditMealSelect").value);
+  if(!confirm("Copiare questo pasto su tutti i giorni?")) return;
+  const mealCopy = clone(state.dietPlan.week[di].meals[mi] || []);
+  for(let i=0;i<7;i++){
+    state.dietPlan.week[i].meals[mi] = clone(mealCopy);
+  }
+  saveState();
+  renderDietFoodsList();
+  renderDietEditor();
+  toast("Pasto copiato su tutti");
+});
+
+$("btnDietReset")?.addEventListener("click",()=>{
+  if(!confirm("Reset dieta?")) return;
+  state.dietPlan = defaultDietWeek();
+  state.ui.dietEditDayIndex = 0;
+  state.ui.dietEditMeal = 1;
+  saveState();
+  openDietEditor();
+  renderDietEditor();
+  toast("Dieta resettata");
+});
+
+$("btnDietBack")?.addEventListener("click",()=>{
+  setView("diet");
+});
+
+/* ---------- SETTINGS SAVE ---------- */
 $("btnSaveSettings")?.addEventListener("click",()=>{
   state.settings.weightKg=Number($("setWeight").value||0);
   state.settings.mealsPerDay=Number($("setMeals").value||5);
@@ -505,9 +879,10 @@ $("btnSaveSettings")?.addEventListener("click",()=>{
   toast("Impostazioni salvate");
 });
 
-/* buttons */
+/* ---------- Buttons main ---------- */
 $("btnLoadDefault")?.addEventListener("click",()=>{
   state.workoutPlan=defaultWorkout4Days();
+  state.ui.planEditDayId = state.workoutPlan.days[0]?.id || null;
   saveState();
   populateDays();
   renderDayPreview();
@@ -535,6 +910,7 @@ $("btnTodayMeals")?.addEventListener("click",()=>{
   $("mealSelect").value="1";
   renderDietEditor();
 });
+
 $("btnLoadDietDefault")?.addEventListener("click",()=>{
   state.dietPlan=defaultDietWeek();
   saveState();
@@ -542,6 +918,7 @@ $("btnLoadDietDefault")?.addEventListener("click",()=>{
   renderDietEditor();
   toast("Dieta caricata");
 });
+
 $("dietDaySelect")?.addEventListener("change", renderDietEditor);
 $("mealSelect")?.addEventListener("change", renderDietEditor);
 
@@ -550,13 +927,9 @@ $("btnGrocery")?.addEventListener("click", showGrocery);
 
 $("btnBackup")?.addEventListener("click",()=>setView("settings"));
 
-/* placeholders editor (per ora) */
-$("btnOpenPlanEditor")?.addEventListener("click",()=>{
-  alert("Editor scheda: lo aggiungiamo adesso (crea/modifica giorni+esercizi).");
-});
-$("btnOpenDietEditor")?.addEventListener("click",()=>{
-  alert("Editor dieta: lo aggiungiamo adesso (pasti+alimenti, quantità).");
-});
+/* open editors */
+$("btnOpenPlanEditor")?.addEventListener("click", openPlanEditor);
+$("btnOpenDietEditor")?.addEventListener("click", openDietEditor);
 
 /* backup */
 $("btnExport")?.addEventListener("click",()=>{
@@ -578,10 +951,13 @@ $("fileImport")?.addEventListener("change", async (e)=>{
   toast("Import completato");
 });
 
-/* boot */
+/* ---------- boot ---------- */
 function boot(){
   if(!state.workoutPlan) state.workoutPlan=defaultWorkout4Days();
   if(!state.dietPlan) state.dietPlan=defaultDietWeek();
+  if(!state.ui) state.ui = clone(DEFAULT.ui);
+  if(!state.ui.planEditDayId) state.ui.planEditDayId = state.workoutPlan.days[0]?.id || null;
+
   saveState();
 
   populateDays();
