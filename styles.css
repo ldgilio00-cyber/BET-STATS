@@ -266,3 +266,47 @@ body.session-open .wrap{
   z-index:60;
 }
 .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+
+/* ===== iPhone / Safari FIX: bottom bar + safe-area ===== */
+
+/* più spazio sotto, evita che i contenuti finiscano dietro la barra azioni */
+.sessionBody{
+  padding-bottom: 140px; /* spazio per barra fixed + safe-area */
+}
+
+/* barra azioni: fissa in basso, stile “app” */
+.sessionBottom{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  padding: 12px 14px calc(env(safe-area-inset-bottom) + 14px);
+  background: rgba(11,18,32,.92);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+
+  display:flex;
+  gap:10px;
+  flex-wrap:nowrap;
+  z-index: 70;
+}
+
+/* bottoni della barra: larghi e coerenti */
+.sessionBottom .btn{
+  flex: 1;
+  min-width: 0;
+  border-radius: 16px;
+  padding: 14px 14px;
+  font-size: 15px;
+}
+
+/* migliora scroll su iOS */
+.sessionBody{
+  -webkit-overflow-scrolling: touch;
+}
+
+/* se vuoi più “aria” sopra i set */
+.sets{
+  margin-bottom: 10px;
+}
