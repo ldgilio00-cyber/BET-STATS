@@ -12,7 +12,7 @@
   <header class="topbar">
     <div class="brand">
       <div class="logo">FP</div>
-      <div>
+      <div class="brandText">
         <div class="title">Fit Planner</div>
         <div class="subtitle">Allenamento + Dieta • Offline</div>
       </div>
@@ -31,33 +31,41 @@
     <!-- HOME -->
     <section class="view" id="view-home">
       <div class="grid">
-        <div class="card">
-          <h2>Oggi</h2>
-          <div class="row">
-            <div class="kpi">
-              <div class="kpi-label">Allenamento</div>
-              <div class="kpi-value" id="homeTodayWorkout">—</div>
+        <div class="card hero">
+          <div class="heroTop">
+            <div>
+              <div class="heroTitle">Oggi</div>
+              <div class="heroSub" id="homeTodayWorkout">—</div>
             </div>
-            <div class="kpi">
-              <div class="kpi-label">Calorie target</div>
-              <div class="kpi-value" id="homeKcal">—</div>
-            </div>
+            <div class="pill" id="homeKcal">—</div>
           </div>
-          <div class="row">
-            <button class="btn primary" id="btnStartSession">Inizia sessione</button>
-            <button class="btn" id="btnTodayMeals">Vedi pasti di oggi</button>
+
+          <div class="heroActions">
+            <button class="btn primary big" id="btnStartSession">Inizia allenamento</button>
+            <button class="btn big" id="btnTodayMeals">Pasti di oggi</button>
+          </div>
+
+          <div class="heroMini">
+            <div class="mini">
+              <div class="miniLabel">Sessioni salvate</div>
+              <div class="miniValue" id="homeSessions">0</div>
+            </div>
+            <div class="mini">
+              <div class="miniLabel">Piano</div>
+              <div class="miniValue" id="homePlanName">—</div>
+            </div>
           </div>
         </div>
 
         <div class="card">
-          <h2>Azioni rapide</h2>
-          <div class="row">
-            <button class="btn" data-jump="workout">Modifica scheda</button>
-            <button class="btn" data-jump="diet">Piano dieta</button>
+          <div class="cardHead">
+            <h2>Azioni rapide</h2>
           </div>
-          <div class="row">
+          <div class="actions">
+            <button class="btn" data-jump="workout">Scheda</button>
+            <button class="btn" data-jump="diet">Dieta</button>
             <button class="btn" id="btnGrocery">Lista spesa</button>
-            <button class="btn" id="btnBackup">Export / Import</button>
+            <button class="btn" id="btnBackup">Backup</button>
           </div>
         </div>
       </div>
@@ -67,10 +75,10 @@
     <section class="view hidden" id="view-workout">
       <div class="grid">
         <div class="card">
-          <div class="card-head">
+          <div class="cardHead">
             <h2>Scheda</h2>
             <div class="row">
-              <button class="btn" id="btnLoadDefault">Carica scheda 4gg (default)</button>
+              <button class="btn" id="btnLoadDefault">Carica scheda 4gg</button>
               <button class="btn danger" id="btnResetWorkout">Reset</button>
             </div>
           </div>
@@ -80,15 +88,20 @@
               <span>Giorno</span>
               <select id="daySelect"></select>
             </label>
-            <button class="btn primary" id="btnStartDay">Avvia</button>
+            <button class="btn primary" id="btnStartDay">Avvia sessione</button>
           </div>
 
           <div id="dayPreview" class="list"></div>
         </div>
 
         <div class="card">
-          <h2>Sessione attiva</h2>
-          <div id="sessionBox" class="muted">Nessuna sessione attiva.</div>
+          <h2>Consigli rapidi</h2>
+          <div class="tip">
+            <b>RIR</b> = ripetizioni “in serbatoio”. Su fondamentali resta RIR 1–2, sugli isolamenti puoi spingere a RIR 0–1.
+          </div>
+          <div class="tip">
+            <b>Progressione</b>: quando fai il top del range su tutte le serie → +2,5% (o +1–2 kg) la prossima volta.
+          </div>
         </div>
       </div>
     </section>
@@ -97,20 +110,21 @@
     <section class="view hidden" id="view-diet">
       <div class="grid">
         <div class="card">
-          <div class="card-head">
+          <div class="cardHead">
             <h2>Piano dieta</h2>
             <div class="row">
-              <button class="btn" id="btnLoadDietDefault">Carica dieta (default)</button>
-              <button class="btn" id="btnGenerateGrocery">Genera lista spesa</button>
+              <button class="btn" id="btnLoadDietDefault">Carica dieta</button>
+              <button class="btn" id="btnGenerateGrocery">Lista spesa</button>
             </div>
           </div>
+
           <div class="row">
             <label class="field">
               <span>Giorno</span>
               <select id="dietDaySelect"></select>
             </label>
             <label class="field">
-              <span>Pasti</span>
+              <span>Pasto</span>
               <select id="mealSelect">
                 <option value="1">Pasto 1</option>
                 <option value="2">Pasto 2</option>
@@ -125,26 +139,26 @@
         </div>
 
         <div class="card">
-          <h2>Macro target</h2>
-          <div class="row">
+          <h2>Target</h2>
+          <div class="kpiRow">
             <div class="kpi">
-              <div class="kpi-label">Kcal</div>
-              <div class="kpi-value" id="kcalTarget">—</div>
+              <div class="kpiLabel">Kcal</div>
+              <div class="kpiValue" id="kcalTarget">—</div>
             </div>
             <div class="kpi">
-              <div class="kpi-label">Proteine</div>
-              <div class="kpi-value" id="pTarget">—</div>
+              <div class="kpiLabel">Proteine</div>
+              <div class="kpiValue" id="pTarget">—</div>
             </div>
             <div class="kpi">
-              <div class="kpi-label">Carbo</div>
-              <div class="kpi-value" id="cTarget">—</div>
+              <div class="kpiLabel">Carbo</div>
+              <div class="kpiValue" id="cTarget">—</div>
             </div>
             <div class="kpi">
-              <div class="kpi-label">Grassi</div>
-              <div class="kpi-value" id="fTarget">—</div>
+              <div class="kpiLabel">Grassi</div>
+              <div class="kpiValue" id="fTarget">—</div>
             </div>
           </div>
-          <p class="muted">I target si possono aggiornare dalle impostazioni. La dieta è “fissa” per routine, ma puoi duplicare la settimana.</p>
+          <p class="muted">Dieta routine: semplice, ripetibile. La rifiniamo dopo.</p>
         </div>
       </div>
     </section>
@@ -157,7 +171,7 @@
           <div id="sessionHistory" class="list"></div>
         </div>
         <div class="card">
-          <h2>PR & Progressione</h2>
+          <h2>PR (base)</h2>
           <div id="prBox" class="list"></div>
         </div>
       </div>
@@ -171,16 +185,16 @@
           <div class="row">
             <label class="field">
               <span>Peso (kg)</span>
-              <input id="setWeight" type="number" step="0.1" placeholder="68" />
+              <input id="setWeight" type="number" step="0.1" />
             </label>
             <label class="field">
               <span>Pasti al giorno</span>
-              <input id="setMeals" type="number" min="3" max="6" value="5" />
+              <input id="setMeals" type="number" min="3" max="6" />
             </label>
           </div>
           <div class="row">
             <label class="field">
-              <span>Kcal target</span>
+              <span>Kcal</span>
               <input id="setKcal" type="number" step="10" />
             </label>
             <label class="field">
@@ -210,14 +224,54 @@
               <input id="fileImport" type="file" accept="application/json" hidden />
             </label>
           </div>
-          <p class="muted">Consiglio: fai export 1 volta a settimana.</p>
+          <p class="muted">Consiglio: export 1 volta a settimana.</p>
         </div>
       </div>
     </section>
   </main>
 
-  <div class="toast" id="toast"></div>
+  <!-- SESSIONE DEDICATA (FULLSCREEN) -->
+  <section class="session hidden" id="session">
+    <div class="sessionTop">
+      <button class="btn ghost" id="btnSessionExit">← Esci</button>
+      <div class="sessionTitle">
+        <div class="sessionDay" id="sessionDay">—</div>
+        <div class="sessionDate" id="sessionDate">—</div>
+      </div>
+      <button class="btn danger" id="btnSessionFinish">Chiudi</button>
+    </div>
 
+    <div class="timerCard">
+      <div class="timerLabel">RECUPERO</div>
+      <div class="timerTime" id="timerTime">00:00</div>
+      <div class="timerRow">
+        <button class="btn" id="btnTimerStart">Start</button>
+        <button class="btn" id="btnTimerPause">Pausa</button>
+        <button class="btn" id="btnTimerSkip">Salta</button>
+      </div>
+      <div class="muted small" id="timerHint">Partenza automatica dopo “Salva serie”.</div>
+    </div>
+
+    <div class="sessionBody">
+      <div class="sessionNav">
+        <button class="btn" id="btnPrevEx">◀</button>
+        <div class="exMeta">
+          <div class="exName" id="exName">—</div>
+          <div class="exTarget" id="exTarget">—</div>
+        </div>
+        <button class="btn" id="btnNextEx">▶</button>
+      </div>
+
+      <div class="sets" id="setsBox"></div>
+
+      <div class="sessionBottom">
+        <button class="btn primary big" id="btnSaveSet">Salva serie</button>
+        <button class="btn big" id="btnNextAfterSave">Prossimo esercizio</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
   <script src="./app.js"></script>
 </body>
 </html>
