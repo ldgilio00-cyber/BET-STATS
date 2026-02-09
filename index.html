@@ -2,72 +2,221 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0f19" />
-
-  <title>Tracker Scommesse</title>
-
-  <!-- PWA -->
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <!-- Styles -->
   <link rel="stylesheet" href="./styles.css" />
+  <title>Fit Planner</title>
 </head>
-
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="logo">TS</div>
-      <div class="brand-text">
-        <div class="brand-title">Tracker Scommesse</div>
-        <div class="brand-sub">Offline PWA • Bookmakers • Stats</div>
+      <div class="logo">FP</div>
+      <div>
+        <div class="title">Fit Planner</div>
+        <div class="subtitle">Allenamento + Dieta • Offline</div>
       </div>
     </div>
 
-    <nav class="nav">
-      <button class="nav-btn active" data-nav="dashboard" title="Dashboard">Dashboard</button>
-      <button class="nav-btn" data-nav="bets" title="Bets">Bets</button>
-      <button class="nav-btn" data-nav="bookmakers" title="Bookmakers">Bookmakers</button>
-      <button class="nav-btn" data-nav="stats" title="Statistiche">Stats</button>
-      <button class="nav-btn" data-nav="settings" title="Impostazioni">Impostazioni</button>
+    <nav class="tabs">
+      <button class="tab active" data-view="home">Home</button>
+      <button class="tab" data-view="workout">Allenamento</button>
+      <button class="tab" data-view="diet">Dieta</button>
+      <button class="tab" data-view="progress">Progressi</button>
+      <button class="tab" data-view="settings">Impostazioni</button>
     </nav>
   </header>
 
-  <main class="container">
-    <!-- Views: app.js mostra/nasconde in base all'hash -->
-    <section id="view-dashboard"></section>
-    <section id="view-bets" style="display:none;"></section>
-    <section id="view-bookmakers" style="display:none;"></section>
-    <section id="view-stats" style="display:none;"></section>
-    <section id="view-settings" style="display:none;"></section>
+  <main class="wrap">
+    <!-- HOME -->
+    <section class="view" id="view-home">
+      <div class="grid">
+        <div class="card">
+          <h2>Oggi</h2>
+          <div class="row">
+            <div class="kpi">
+              <div class="kpi-label">Allenamento</div>
+              <div class="kpi-value" id="homeTodayWorkout">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Calorie target</div>
+              <div class="kpi-value" id="homeKcal">—</div>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="btnStartSession">Inizia sessione</button>
+            <button class="btn" id="btnTodayMeals">Vedi pasti di oggi</button>
+          </div>
+        </div>
 
-    <noscript>
-      <div class="card">
-        <h2>JavaScript disattivato</h2>
-        <p>Per usare questa PWA devi abilitare JavaScript.</p>
+        <div class="card">
+          <h2>Azioni rapide</h2>
+          <div class="row">
+            <button class="btn" data-jump="workout">Modifica scheda</button>
+            <button class="btn" data-jump="diet">Piano dieta</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnGrocery">Lista spesa</button>
+            <button class="btn" id="btnBackup">Export / Import</button>
+          </div>
+        </div>
       </div>
-    </noscript>
+    </section>
+
+    <!-- ALLENAMENTO -->
+    <section class="view hidden" id="view-workout">
+      <div class="grid">
+        <div class="card">
+          <div class="card-head">
+            <h2>Scheda</h2>
+            <div class="row">
+              <button class="btn" id="btnLoadDefault">Carica scheda 4gg (default)</button>
+              <button class="btn danger" id="btnResetWorkout">Reset</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="field">
+              <span>Giorno</span>
+              <select id="daySelect"></select>
+            </label>
+            <button class="btn primary" id="btnStartDay">Avvia</button>
+          </div>
+
+          <div id="dayPreview" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Sessione attiva</h2>
+          <div id="sessionBox" class="muted">Nessuna sessione attiva.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIETA -->
+    <section class="view hidden" id="view-diet">
+      <div class="grid">
+        <div class="card">
+          <div class="card-head">
+            <h2>Piano dieta</h2>
+            <div class="row">
+              <button class="btn" id="btnLoadDietDefault">Carica dieta (default)</button>
+              <button class="btn" id="btnGenerateGrocery">Genera lista spesa</button>
+            </div>
+          </div>
+          <div class="row">
+            <label class="field">
+              <span>Giorno</span>
+              <select id="dietDaySelect"></select>
+            </label>
+            <label class="field">
+              <span>Pasti</span>
+              <select id="mealSelect">
+                <option value="1">Pasto 1</option>
+                <option value="2">Pasto 2</option>
+                <option value="3">Pasto 3</option>
+                <option value="4">Pasto 4</option>
+                <option value="5">Pasto 5</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="dietEditor" class="list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Macro target</h2>
+          <div class="row">
+            <div class="kpi">
+              <div class="kpi-label">Kcal</div>
+              <div class="kpi-value" id="kcalTarget">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Proteine</div>
+              <div class="kpi-value" id="pTarget">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Carbo</div>
+              <div class="kpi-value" id="cTarget">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Grassi</div>
+              <div class="kpi-value" id="fTarget">—</div>
+            </div>
+          </div>
+          <p class="muted">I target si possono aggiornare dalle impostazioni. La dieta è “fissa” per routine, ma puoi duplicare la settimana.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROGRESSI -->
+    <section class="view hidden" id="view-progress">
+      <div class="grid">
+        <div class="card">
+          <h2>Storico sessioni</h2>
+          <div id="sessionHistory" class="list"></div>
+        </div>
+        <div class="card">
+          <h2>PR & Progressione</h2>
+          <div id="prBox" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- IMPOSTAZIONI -->
+    <section class="view hidden" id="view-settings">
+      <div class="grid">
+        <div class="card">
+          <h2>Profilo & target</h2>
+          <div class="row">
+            <label class="field">
+              <span>Peso (kg)</span>
+              <input id="setWeight" type="number" step="0.1" placeholder="68" />
+            </label>
+            <label class="field">
+              <span>Pasti al giorno</span>
+              <input id="setMeals" type="number" min="3" max="6" value="5" />
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">
+              <span>Kcal target</span>
+              <input id="setKcal" type="number" step="10" />
+            </label>
+            <label class="field">
+              <span>Proteine (g)</span>
+              <input id="setP" type="number" step="1" />
+            </label>
+            <label class="field">
+              <span>Carbo (g)</span>
+              <input id="setC" type="number" step="1" />
+            </label>
+            <label class="field">
+              <span>Grassi (g)</span>
+              <input id="setF" type="number" step="1" />
+            </label>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="btnSaveSettings">Salva</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Backup</h2>
+          <div class="row">
+            <button class="btn" id="btnExport">Export JSON</button>
+            <label class="btn file">
+              Import JSON
+              <input id="fileImport" type="file" accept="application/json" hidden />
+            </label>
+          </div>
+          <p class="muted">Consiglio: fai export 1 volta a settimana.</p>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <footer class="footer">
-    <div class="footer-inner">
-      <span>© <span id="y"></span> Tracker Scommesse</span>
-      <span class="dot">•</span>
-      <span>Offline-first</span>
-      <span class="dot">•</span>
-      <a class="link" href="#settings">Backup</a>
-    </div>
-  </footer>
-
-  <script>
-    // anno footer
-    document.getElementById("y").textContent = new Date().getFullYear();
-    // view default
-    if (!location.hash) location.hash = "#dashboard";
-  </script>
+  <div class="toast" id="toast"></div>
 
   <script src="./app.js"></script>
 </body>
