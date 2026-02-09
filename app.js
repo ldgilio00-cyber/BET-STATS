@@ -13,10 +13,10 @@ function clone(o){ return JSON.parse(JSON.stringify(o)); }
 const DEFAULT = {
   settings: { weightKg: 68, mealsPerDay: 5, kcal: 2900, p: 140, c: 380, f: 80 },
 
-  plans: [],          // [{id,name,days:[{id,name,exercises:[]}] }]
+  plans: [],
   activePlanId: null,
 
-  diets: [],          // [{id,name,week:[{meals:{1:[],..5:[]}} x7]}]
+  diets: [],
   activeDietId: null,
 
   sessions: [],
@@ -120,6 +120,69 @@ function getActivePlan(){
 }
 function getActiveDiet(){
   return state.diets.find(d => d.id === state.activeDietId) || null;
+}
+function toNumKg(v){
+  const n = Number(String(v ?? "").replace(",", ".").trim());
+  return isFinite(n) ? n : NaN;
+}
+function toNumReps(v){
+  const n = Number(String(v ?? "").replace(",", ".").trim());
+  return isFinite(n) ? n : NaN;
+}
+
+/* ---------- ⭐ STORICO: ultima volta + best ---------- */
+function getExerciseHistory(exName){
+  // ritorna { last: {date, kg, reps, rir} | null, bestKg: number|null }
+  const currentId = state.activeSessionId;
+  const name = String(exName || "").trim().toLowerCase();
+  if (!name) return { last: null, bestKg: null };
+
+  let last = null;
+  let bestKg = null;
+
+  // scorri tutte le sessioni (escludi quella attiva) e cerca l'esercizio
+  // usa "ultima volta" = set più recente con kg valido
+  // "bestKg" = massimo kg mai registrato (qualunque set)
+  const sessions = [...state.sessions]
+    .filter(s => s && s.id !== currentId && s.items && Array.isArray(s.items))
+    .sort((a,b) => (a.date || "") < (b.date || "") ? 1 : -1);
+
+  for (const s of sessions){
+    for (const it of s.items){
+      if (!it?.ex) continue;
+      if (String(it.ex).trim().toLowerCase() !== name) continue;
+
+      for (const st of (it.sets || [])){
+        const kg = toNumKg(st.kg);
+        const reps = toNumReps(st.reps);
+        if (isFinite(kg) && kg > 0){
+          if (bestKg === null || kg > bestKg) bestKg = kg;
+          if (!last){
+            last = {
+              date: s.date || "",
+              kg,
+              reps: isFinite(reps) ? reps : null,
+              rir: (st.rir ?? "") ? String(st.rir) : ""
+            };
+          }
+        }
+      }
+    }
+    if (last && bestKg !== null) break;
+  }
+
+  return { last, bestKg };
+}
+
+function fmtHistoryLine(hist){
+  if (!hist?.last && hist?.bestKg === null) return "";
+  const l = hist.last;
+  const lastTxt = l
+    ? `Ultima volta: ${l.kg.toFixed(1).replace(".0","")} kg${l.reps ? ` x ${l.reps}` : ""}${l.rir ? ` (RIR ${l.rir})` : ""} • ${l.date}`
+    : "";
+  const bestTxt = (hist.bestKg !== null) ? `Best: ${hist.bestKg.toFixed(1).replace(".0","")} kg` : "";
+  if (lastTxt && bestTxt) return `${lastTxt}  |  ${bestTxt}`;
+  return lastTxt || bestTxt;
 }
 
 /* ---------- views ---------- */
@@ -289,12 +352,17 @@ function renderSingleSet(){
   const st=it.sets[idx];
   const unitLabel = it.unit==="sec" ? "Secondi" : "Reps";
 
+  const hist = getExerciseHistory(it.ex);
+  const histLine = fmtHistoryLine(hist);
+
   $("singleSetBox").innerHTML=`
     <div class="singleCard">
       <div class="singleTop">
         <div class="singleTitle">Serie ${idx+1} di ${it.sets.length}</div>
         <div class="badge">ATTIVA</div>
       </div>
+
+      ${histLine ? `<div class="tip" style="margin:0 0 10px 0">${histLine}</div>` : ""}
 
       <div class="singleGrid">
         <label class="field">
@@ -332,7 +400,14 @@ function renderSession(){
 
   const unit = it.unit==="sec" ? "sec" : "reps";
   const t=it.target;
-  $("exTarget").textContent=`Target: ${t.sets}x ${t.repMin}-${t.repMax} ${unit} • RIR ${t.rir} • Rec ${t.rest}`;
+
+  // ⭐ storico in alto, vicino ai target
+  const hist = getExerciseHistory(it.ex);
+  const histLine = fmtHistoryLine(hist);
+
+  $("exTarget").textContent =
+    `Target: ${t.sets}x ${t.repMin}-${t.repMax} ${unit} • RIR ${t.rir} • Rec ${t.rest}` +
+    (histLine ? `  —  ${histLine}` : "");
 
   if(!timer.running && timer.remaining===0){
     timerSet(parseRestToSeconds(it.target.rest));
@@ -353,6 +428,7 @@ function saveSetAndAutoTimer(){
   toast(`Serie ${idx+1} salvata`);
   timerAutoFromExercise();
 }
+
 function nextSet(){
   const s=activeSession(); if(!s) return;
   const it=s.items[state.activeExIndex];
@@ -421,7 +497,6 @@ function renderPlansList(){
     box.innerHTML = `<div class="muted">Nessuna scheda. Clicca “Nuova scheda”.</div>`;
     return;
   }
-
   state.plans.forEach(p=>{
     const div=document.createElement("div");
     div.className="item";
@@ -441,12 +516,10 @@ function renderPlansList(){
     box.appendChild(div);
   });
 }
-
 function openPlans(){
   renderPlansList();
   setView("plans");
 }
-
 function openPlanEditor(planId){
   const p = state.plans.find(x=>x.id===planId);
   if(!p) return;
@@ -511,14 +584,12 @@ document.addEventListener("click",(e)=>{
   }
 });
 
-/* plan editor internals */
 function planEditing(){
   return state.plans.find(p=>p.id===state.ui.planEditId) || null;
 }
 function planDayById(plan, id){
   return plan.days.find(d=>d.id===id) || null;
 }
-
 function populatePlanDaySelect(){
   const sel = $("planDaySelect");
   const plan = planEditing();
@@ -531,14 +602,12 @@ function populatePlanDaySelect(){
   });
   sel.value = state.ui.planEditDayId || (plan.days[0]?.id || "");
 }
-
 function renderPlanDaysList(){
   const box = $("planDaysList");
   const plan = planEditing();
   if(!box || !plan) return;
   box.innerHTML = "";
-
-  plan.days.forEach((d,idx)=>{
+  plan.days.forEach((d)=>{
     const div=document.createElement("div");
     div.className="item";
     div.innerHTML = `
@@ -556,7 +625,6 @@ function renderPlanDaysList(){
     box.appendChild(div);
   });
 }
-
 function renderPlanExercisesList(){
   const box = $("planExercisesList");
   const plan = planEditing();
@@ -736,7 +804,7 @@ $("btnPlanDelete")?.addEventListener("click", ()=>{
   toast("Scheda eliminata");
 });
 
-/* ---------- diets library + editor ---------- */
+/* ---------- diets library + editor + preview ---------- */
 function renderDietsList(){
   const box = $("dietsList"); if(!box) return;
   box.innerHTML = "";
@@ -744,7 +812,6 @@ function renderDietsList(){
     box.innerHTML = `<div class="muted">Nessuna dieta. Clicca “Nuova dieta”.</div>`;
     return;
   }
-
   state.diets.forEach(d=>{
     const div=document.createElement("div");
     div.className="item";
@@ -764,16 +831,13 @@ function renderDietsList(){
     box.appendChild(div);
   });
 }
-
 function openDiets(){
   renderDietsList();
   setView("diets");
 }
-
 function dietEditing(){
   return state.diets.find(d=>d.id===state.ui.dietEditId) || null;
 }
-
 function populateDietEditDays(){
   const sel = $("dietEditDaySelect"); if(!sel) return;
   sel.innerHTML = "";
@@ -785,7 +849,6 @@ function populateDietEditDays(){
   }
   sel.value = String(state.ui.dietEditDayIndex || 0);
 }
-
 function renderDietFoodsList(){
   const d = dietEditing();
   const box = $("dietFoodsList");
@@ -823,7 +886,6 @@ function renderDietFoodsList(){
     box.appendChild(div);
   });
 }
-
 function openDietEditor(dietId){
   const d = state.diets.find(x=>x.id===dietId);
   if(!d) return;
@@ -838,7 +900,6 @@ function openDietEditor(dietId){
   renderDietFoodsList();
   setView("dietedit");
 }
-
 document.addEventListener("click",(e)=>{
   const use = e.target.closest("[data-diet-use]");
   const edit = e.target.closest("[data-diet-edit]");
@@ -882,7 +943,6 @@ document.addEventListener("click",(e)=>{
   }
 });
 
-/* diet editor actions */
 $("btnDietSaveName")?.addEventListener("click", ()=>{
   const d = dietEditing(); if(!d) return;
   d.name = $("dietName").value.trim() || "Dieta";
@@ -892,7 +952,6 @@ $("btnDietSaveName")?.addEventListener("click", ()=>{
   $("dietEditTitle").textContent = `Editor Dieta: ${d.name}`;
   toast("Nome salvato");
 });
-
 $("dietEditDaySelect")?.addEventListener("change", renderDietFoodsList);
 $("dietEditMealSelect")?.addEventListener("change", renderDietFoodsList);
 
@@ -985,7 +1044,7 @@ $("btnDietDelete")?.addEventListener("click", ()=>{
   toast("Dieta eliminata");
 });
 
-/* ---------- diet preview (view diet) ---------- */
+/* diet preview */
 function populateDietDays(){
   const sel=$("dietDaySelect"); if(!sel) return;
   sel.innerHTML="";
@@ -1023,7 +1082,7 @@ function renderDietPreview(){
 $("dietDaySelect")?.addEventListener("change", renderDietPreview);
 $("mealSelect")?.addEventListener("change", renderDietPreview);
 
-/* ---------- grocery ---------- */
+/* grocery */
 function generateGrocery(){
   const diet = getActiveDiet();
   if(!diet) return null;
@@ -1047,7 +1106,7 @@ function showGrocery(){
   alert("LISTA SPESA SETTIMANALE\n\n"+list.map(x=>`• ${x.food}: ${x.qty} ${x.unit}`).join("\n"));
 }
 
-/* ---------- progress ---------- */
+/* progress */
 function renderHistory(){
   const box=$("sessionHistory"); if(!box) return;
   box.innerHTML="";
@@ -1071,7 +1130,7 @@ function renderPR(){
   for(const s of state.sessions){
     for(const it of s.items){
       for(const st of it.sets){
-        const kg=Number(String(st.kg).replace(",","."));
+        const kg=toNumKg(st.kg);
         if(!isFinite(kg)||kg<=0) continue;
         pr.set(it.ex, Math.max(pr.get(it.ex)||0, kg));
       }
@@ -1081,12 +1140,12 @@ function renderPR(){
   Array.from(pr.entries()).sort((a,b)=>b[1]-a[1]).slice(0,40).forEach(([ex,kg])=>{
     const div=document.createElement("div");
     div.className="item";
-    div.innerHTML=`<div class="itemTop"><div class="itemTitle">${ex}</div><div class="badge">${kg.toFixed(1)} kg</div></div>`;
+    div.innerHTML=`<div class="itemTop"><div class="itemTitle">${ex}</div><div class="badge">${kg.toFixed(1).replace(".0","")} kg</div></div>`;
     box.appendChild(div);
   });
 }
 
-/* ---------- home & settings ---------- */
+/* home & settings */
 function homeRefresh(){
   $("homeKcal").textContent=`${state.settings.kcal} kcal`;
   $("homeSessions").textContent=String(state.sessions.length);
@@ -1103,7 +1162,6 @@ function homeRefresh(){
   }
   $("homeTodayWorkout").textContent=today;
 }
-
 function renderSettings(){
   $("setWeight").value=state.settings.weightKg;
   $("setMeals").value=state.settings.mealsPerDay;
@@ -1118,7 +1176,7 @@ function renderSettings(){
   $("fTarget").textContent=state.settings.f+" g";
 }
 
-/* ---------- buttons: navigation ---------- */
+/* navigation buttons */
 $("btnOpenPlans")?.addEventListener("click", openPlans);
 $("btnPlansBack")?.addEventListener("click", ()=>setView("workout"));
 $("btnPlanEditBack")?.addEventListener("click", openPlans);
@@ -1139,7 +1197,6 @@ $("btnPlanNew")?.addEventListener("click", ()=>{
   openPlanEditor(p.id);
   toast("Scheda creata");
 });
-
 $("btnDietNew")?.addEventListener("click", ()=>{
   const name = prompt("Nome nuova dieta:", "Nuova dieta");
   if(!name) return;
@@ -1153,7 +1210,6 @@ $("btnDietNew")?.addEventListener("click", ()=>{
   toast("Dieta creata");
 });
 
-/* load defaults */
 $("btnLoadDefaultPlan")?.addEventListener("click", ()=>{
   const p = defaultWorkout4Days();
   state.plans.push(p);
@@ -1164,7 +1220,6 @@ $("btnLoadDefaultPlan")?.addEventListener("click", ()=>{
   homeRefresh();
   toast("Scheda 4gg aggiunta");
 });
-
 $("btnLoadDefaultDiet")?.addEventListener("click", ()=>{
   const d = defaultDietWeek();
   state.diets.push(d);
@@ -1175,7 +1230,6 @@ $("btnLoadDefaultDiet")?.addEventListener("click", ()=>{
   toast("Dieta base aggiunta");
 });
 
-/* start session */
 $("btnStartDay")?.addEventListener("click", ()=>{
   const plan = getActivePlan();
   if(!plan){ toast("Crea o seleziona una scheda"); return; }
@@ -1185,7 +1239,6 @@ $("btnStartDay")?.addEventListener("click", ()=>{
 $("btnStartSession")?.addEventListener("click", ()=>{
   const plan = getActivePlan();
   if(!plan){ toast("Crea o seleziona una scheda"); return; }
-
   const dow=new Date().getDay();
   const map={1:"mon",2:"tue",4:"thu",5:"fri"};
   const id=map[dow]||plan.days[0]?.id;
@@ -1193,7 +1246,6 @@ $("btnStartSession")?.addEventListener("click", ()=>{
   startSession(id);
 });
 
-/* meals shortcut */
 $("btnTodayMeals")?.addEventListener("click", ()=>{
   setView("diet");
   $("dietDaySelect").value = String((new Date().getDay()+6)%7);
@@ -1201,12 +1253,10 @@ $("btnTodayMeals")?.addEventListener("click", ()=>{
   renderDietPreview();
 });
 
-/* grocery */
 $("btnGenerateGrocery")?.addEventListener("click", showGrocery);
 $("btnGrocery")?.addEventListener("click", showGrocery);
 $("btnBackup")?.addEventListener("click", ()=>setView("settings"));
 
-/* settings */
 $("btnSaveSettings")?.addEventListener("click",()=>{
   state.settings.weightKg=Number($("setWeight").value||0);
   state.settings.mealsPerDay=Number($("setMeals").value||5);
@@ -1240,9 +1290,8 @@ $("fileImport")?.addEventListener("change", async (e)=>{
   toast("Import completato");
 });
 
-/* ---------- boot ---------- */
+/* boot */
 function ensureBaseData(){
-  // se arrivi da versioni vecchie: guarda workoutPlan/dietPlan e converti
   if (state.workoutPlan && !state.plans?.length){
     const p = clone(state.workoutPlan);
     p.id = uid().slice(0,8);
