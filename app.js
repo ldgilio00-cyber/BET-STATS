@@ -4,7 +4,9 @@
    ✅ Storico esercizio (Ultima/Best) — CORRETTO (Best reale)
    ✅ Suggerimento progressione (PT)
    ✅ Grafico progressione esercizio (canvas) — PER SESSIONE (anche stesso giorno)
-   ✅ TAP su “Storico sessioni” -> apre la sessione (chiusa = sola lettura)
+   ✅ TAP su “Storico sessioni” -> apre la sessione (EDIT anche se chiusa)
+   ✅ Toggle “Chiusa/Riapri”
+   ✅ Grafico più dettagliato: assi, griglia, min/max/ultimo, tooltip tap
 */
 
 if ("serviceWorker" in navigator) {
@@ -38,8 +40,7 @@ const DEFAULT = {
     planEditId: null, planEditDayId: null,
     dietEditId: null, dietEditDayIndex: 0, dietEditMeal: 1,
     exProgName: "", exProgMode: "best",
-    sessionViewOnly: false,
-    sessionViewId: null
+    sessionOpenId: null,     // sessione aperta da storico / attiva
   }
 };
 
@@ -143,9 +144,18 @@ function toKg(v){ const n=toNum(v); return (isFinite(n)&&n>0)?n:NaN; }
 function toReps(v){ const n=toNum(v); return (isFinite(n)&&n>=0)?n:NaN; }
 function normName(s){ return String(s||"").trim().toLowerCase(); }
 
+function shortDate(d){
+  // "2026-02-10" -> "10/02"
+  const s = String(d||"");
+  if (s.length >= 10){
+    const dd = s.slice(8,10);
+    const mm = s.slice(5,7);
+    return `${dd}/${mm}`;
+  }
+  return s;
+}
+
 /* ================= STORICO + SUGGERIMENTI ================= */
-/* ✅ FIX: Best = max su tutte le sessioni (esclusa quella attiva)
-   ✅ Ultima = ultima sessione reale (ordinamento per ts, fallback su date) */
 function getExerciseLastBest(exName){
   const currentId = state.activeSessionId;
   const name = normName(exName);
@@ -254,7 +264,7 @@ function getAllExerciseNames(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
-/* ✅ FIX: PER SESSIONE (non per giorno) */
+/* ✅ PER SESSIONE */
 function getExerciseDailySeries(exName){
   const name = normName(exName);
   const rows = [];
@@ -294,6 +304,56 @@ function getExerciseDailySeries(exName){
   return rows;
 }
 
+function niceTicks(min, max, count){
+  // tick “carini” (tipo 5)
+  if (!(isFinite(min) && isFinite(max)) || min === max) return [min, max];
+  const span = max - min;
+  const step0 = span / Math.max(1, (count-1));
+  const pow = Math.pow(10, Math.floor(Math.log10(step0)));
+  const n = step0 / pow;
+  const niceN = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  const step = niceN * pow;
+
+  const start = Math.floor(min/step) * step;
+  const end = Math.ceil(max/step) * step;
+
+  const ticks = [];
+  for(let v=start; v<=end + 1e-9; v+=step) ticks.push(v);
+  return ticks;
+}
+
+function attachChartInteractions(canvas){
+  if (!canvas || canvas._fp_bound) return;
+  canvas._fp_bound = true;
+
+  const pick = (evt) => {
+    const meta = canvas._fp_meta;
+    if (!meta || !meta.points?.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = (evt.touches?.[0]?.clientX ?? evt.clientX) - rect.left;
+    const y = (evt.touches?.[0]?.clientY ?? evt.clientY) - rect.top;
+
+    let best = null;
+    for (const p of meta.points){
+      const dx = x - p.cx;
+      const dy = y - p.cy;
+      const d2 = dx*dx + dy*dy;
+      if (best === null || d2 < best.d2) best = { d2, p };
+    }
+    if (!best) return;
+
+    // raggio click comodo (in px css)
+    const r = 18;
+    if (best.d2 <= r*r){
+      toast(`${best.p.label}`);
+    }
+  };
+
+  canvas.addEventListener("click", pick, { passive:true });
+  canvas.addEventListener("touchstart", pick, { passive:true });
+}
+
 function drawChart(canvas, rows, mode){
   if(!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -310,30 +370,58 @@ function drawChart(canvas, rows, mode){
     ctx.font = `${14*devicePixelRatio}px system-ui`;
     ctx.fillText("Nessun dato per questo esercizio.", 12*devicePixelRatio, 28*devicePixelRatio);
     ctx.globalAlpha = 1;
+    canvas._fp_meta = { points: [] };
     return;
   }
 
-  const pad = 18*devicePixelRatio;
+  // padding più ricco per assi/etichette
+  const padL = 42*devicePixelRatio;
+  const padR = 14*devicePixelRatio;
+  const padT = 22*devicePixelRatio;
+  const padB = 28*devicePixelRatio;
+
   const ys = rows.map(r=>r[mode]);
+  const yMin0 = Math.min(...ys);
+  const yMax0 = Math.max(...ys);
+  const yPad = (yMax0 - yMin0) * 0.18 || 1;
 
-  const yMin = Math.min(...ys);
-  const yMax = Math.max(...ys);
-  const yPad = (yMax - yMin) * 0.15 || 1;
-  const min = Math.max(0, yMin - yPad);
-  const max = yMax + yPad;
+  const min = Math.max(0, yMin0 - yPad);
+  const max = yMax0 + yPad;
 
-  const xTo = (i) => pad + (i/(Math.max(1, rows.length-1))) * (w - pad*2);
-  const yTo = (v) => (h - pad) - ((v - min) / (max - min)) * (h - pad*2);
+  const xTo = (i) => padL + (i/(Math.max(1, rows.length-1))) * (w - padL - padR);
+  const yTo = (v) => (h - padB) - ((v - min) / (max - min)) * (h - padT - padB);
 
-  ctx.globalAlpha = 0.35;
+  // griglia + ticks
+  const ticks = niceTicks(min, max, 5);
+
+  ctx.globalAlpha = 0.18;
   ctx.lineWidth = 1*devicePixelRatio;
   ctx.beginPath();
-  ctx.moveTo(pad, pad);
-  ctx.lineTo(pad, h-pad);
-  ctx.lineTo(w-pad, h-pad);
+  // vertical axis
+  ctx.moveTo(padL, padT);
+  ctx.lineTo(padL, h-padB);
+  // horizontal axis
+  ctx.lineTo(w-padR, h-padB);
   ctx.stroke();
+
+  // horizontal grid lines + labels
+  ctx.font = `${11*devicePixelRatio}px system-ui`;
+  ctx.globalAlpha = 0.22;
+  for (const t of ticks){
+    const y = yTo(t);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(w-padR, y);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.7;
+    const txt = (t >= 1000) ? t.toFixed(0) : t.toFixed(1).replace(".0","");
+    ctx.fillText(txt, 6*devicePixelRatio, y + 4*devicePixelRatio);
+    ctx.globalAlpha = 0.22;
+  }
   ctx.globalAlpha = 1;
 
+  // linea
   ctx.lineWidth = 2*devicePixelRatio;
   ctx.beginPath();
   rows.forEach((r,i)=>{
@@ -342,17 +430,64 @@ function drawChart(canvas, rows, mode){
   });
   ctx.stroke();
 
+  // punti + meta per tooltip
+  const points = [];
   rows.forEach((r,i)=>{
     const x=xTo(i), y=yTo(r[mode]);
-    ctx.beginPath(); ctx.arc(x,y,5*devicePixelRatio,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x,y,4.8*devicePixelRatio,0,Math.PI*2);
+    ctx.fill();
+
+    const val = r[mode];
+    const vTxt = (mode === "volume")
+      ? `${Math.round(val)}`
+      : `${val.toFixed(1).replace(".0","")}`;
+    points.push({
+      cx: x/devicePixelRatio,
+      cy: y/devicePixelRatio,
+      label: `${r.date} • ${mode.toUpperCase()}: ${vTxt}`
+    });
   });
 
-  const last = rows[rows.length-1];
+  // labels top summary
+  const first = rows[0][mode];
+  const last = rows[rows.length-1][mode];
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const delta = last - first;
+  const sign = delta >= 0 ? "+" : "";
+
   ctx.font = `${12*devicePixelRatio}px system-ui`;
-  ctx.globalAlpha = 0.8;
-  const label = `${last.date} • ${last[mode].toFixed(1).replace(".0","")}`;
-  ctx.fillText(label, pad, pad-4*devicePixelRatio);
+  ctx.globalAlpha = 0.9;
+
+  const lastTxt = (mode==="volume")
+    ? `Ultimo: ${Math.round(last)}`
+    : `Ultimo: ${last.toFixed(1).replace(".0","")}`;
+  const rangeTxt = (mode==="volume")
+    ? `Min/Max: ${Math.round(lo)}–${Math.round(hi)}`
+    : `Min/Max: ${lo.toFixed(1).replace(".0","")}–${hi.toFixed(1).replace(".0","")}`;
+  const deltaTxt = (mode==="volume")
+    ? `Δ: ${sign}${Math.round(delta)}`
+    : `Δ: ${sign}${delta.toFixed(1).replace(".0","")}`;
+
+  const head = `${rows.length} sessioni • ${deltaTxt} • ${rangeTxt} • ${lastTxt}`;
+  ctx.fillText(head, padL, 16*devicePixelRatio);
   ctx.globalAlpha = 1;
+
+  // x labels (solo alcuni per non affollare)
+  ctx.globalAlpha = 0.7;
+  ctx.font = `${10.5*devicePixelRatio}px system-ui`;
+  const step = Math.ceil(rows.length / 6);
+  for (let i=0;i<rows.length;i+=step){
+    const x = xTo(i);
+    const txt = shortDate(rows[i].date) || String(i+1);
+    ctx.fillText(txt, x - 10*devicePixelRatio, h - 10*devicePixelRatio);
+  }
+  ctx.globalAlpha = 1;
+
+  // salva meta per tooltip
+  canvas._fp_meta = { points };
+  attachChartInteractions(canvas);
 }
 
 function renderExerciseProgressUI(){
@@ -385,12 +520,21 @@ function renderExerciseProgressUI(){
     if (!rows.length){
       sum.textContent = "Nessun dato per questo esercizio: fai almeno una sessione e inserisci i carichi.";
     } else {
+      const ys = rows.map(r=>r[mode]);
       const first = rows[0][mode];
       const last = rows[rows.length-1][mode];
+      const lo = Math.min(...ys);
+      const hi = Math.max(...ys);
       const delta = last - first;
-      const sign = delta>=0 ? "+" : "";
-      sum.textContent = `Andamento: ${rows.length} sessioni • ${sign}${delta.toFixed(1).replace(".0","")} (${mode})`;
+      const sign = delta >= 0 ? "+" : "";
+      const lastTxt = (mode==="volume") ? Math.round(last) : last.toFixed(1).replace(".0","");
+      const loTxt = (mode==="volume") ? Math.round(lo) : lo.toFixed(1).replace(".0","");
+      const hiTxt = (mode==="volume") ? Math.round(hi) : hi.toFixed(1).replace(".0","");
+      const dTxt  = (mode==="volume") ? Math.round(delta) : delta.toFixed(1).replace(".0","");
+
+      sum.textContent = `Dettagli: ${rows.length} sessioni • Δ ${sign}${dTxt} • Min ${loTxt} • Max ${hiTxt} • Ultimo ${lastTxt}`;
     }
+
     drawChart(canvas, rows, mode);
   };
 
@@ -411,14 +555,17 @@ function setView(view){
     renderExerciseProgressUI();
   }
 }
+document.addEventListener("click",(e)=>{
+  const tab=e.target.closest(".tab"); if(tab) setView(tab.dataset.view);
+  const jump=e.target.closest("[data-jump]"); if(jump) setView(jump.dataset.jump);
+});
 
-/* ================= TAP: apri sessione dallo storico ================= */
+/* ================= TAP: apri sessione dallo storico (EDIT) ================= */
 function openSessionFromHistory(sessionId){
   const s = state.sessions.find(x => x.id === sessionId);
   if(!s){ toast("Sessione non trovata"); return; }
 
-  state.ui.sessionViewOnly = !!s.closed;
-  state.ui.sessionViewId = s.id;
+  state.ui.sessionOpenId = s.id;
 
   state.activeSessionId = s.id;
   state.activeExIndex = 0;
@@ -428,21 +575,16 @@ function openSessionFromHistory(sessionId){
   openSessionUI();
   renderSession();
 
-  toast(s.closed ? "Sessione (solo lettura)" : "Sessione ripresa");
+  toast(s.closed ? "Sessione aperta (chiusa, ma modificabile)" : "Sessione aperta");
 }
 
+/* delega click su storico */
 document.addEventListener("click",(e)=>{
-  // 1) tap su storico sessioni
   const open = e.target.closest("[data-session-open]");
   if(open){
     const id = open.getAttribute("data-session-id");
     openSessionFromHistory(id);
-    return;
   }
-
-  // 2) tabs / jump
-  const tab=e.target.closest(".tab"); if(tab) setView(tab.dataset.view);
-  const jump=e.target.closest("[data-jump]"); if(jump) setView(jump.dataset.jump);
 });
 
 /* ---------------- selectors active plan/diet ---------------- */
@@ -562,7 +704,7 @@ function startSession(dayId){
 
   const session={
     id:uid(),
-    ts: Date.now(),                // ✅ timestamp univoco per sessione
+    ts: Date.now(),
     date:todayISO(),
     planId: plan.id,
     dayId:day.id,
@@ -580,9 +722,7 @@ function startSession(dayId){
   state.activeSessionId=session.id;
   state.activeExIndex=0;
   state.activeSetIndex=0;
-
-  state.ui.sessionViewOnly = false;
-  state.ui.sessionViewId = session.id;
+  state.ui.sessionOpenId = session.id;
 
   saveState();
 
@@ -612,7 +752,7 @@ function renderSingleSet(){
     <div class="singleCard">
       <div class="singleTop">
         <div class="singleTitle">Serie ${idx+1} di ${it.sets.length}</div>
-        <div class="badge">${state.ui.sessionViewOnly ? "VIEW" : "ATTIVA"}</div>
+        <div class="badge">${s.closed ? "CHIUSA" : "ATTIVA"}</div>
       </div>
 
       ${histLine ? `<div class="tip" style="margin:0 0 10px 0">${histLine}</div>` : ""}
@@ -634,39 +774,25 @@ function renderSingleSet(){
       </div>
 
       <div class="muted small">Scheda: ${it.target.repMin}-${it.target.repMax} reps • RIR ${it.target.rir}</div>
+      <div class="muted small">${s.closed ? "Nota: la sessione è segnata come chiusa, ma puoi modificarla comunque." : ""}</div>
     </div>
   `;
 
-  // auto-compila kg suggerito SOLO se vuoto e SOLO in modalità edit
-  if (!state.ui.sessionViewOnly && sug?.kgSuggested && !String(st.kg||"").trim()){
+  // auto-compila kg suggerito SOLO se vuoto (vale anche sulle vecchie sessioni)
+  if (sug?.kgSuggested && !String(st.kg||"").trim()){
     st.kg = sug.kgSuggested.toFixed(1).replace(".0","");
     saveState();
     $("inKg").value = st.kg;
   }
 
-  const inKg = $("inKg");
-  const inReps = $("inReps");
-  const inRir = $("inRir");
-
-  // modalità sola lettura: disabilita input
-  if (state.ui.sessionViewOnly){
-    if(inKg) inKg.disabled = true;
-    if(inReps) inReps.disabled = true;
-    if(inRir) inRir.disabled = true;
-    return;
-  }
-
-  inKg?.addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
-  inReps?.addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
-  inRir?.addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
+  $("inKg")?.addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
+  $("inReps")?.addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
+  $("inRir")?.addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
 }
 
 function renderSession(){
   const s=activeSession();
   if(!s) return closeSessionUI();
-
-  // sicurezza: se sto aprendo una sessione dallo storico chiusa, forza viewOnly
-  if (state.ui.sessionViewId === s.id && s.closed) state.ui.sessionViewOnly = true;
 
   $("sessionDay").textContent=s.dayName;
   $("sessionDate").textContent=s.date;
@@ -686,38 +812,21 @@ function renderSession(){
     (histLine ? `  —  ${histLine}` : "") +
     (sugShort ? `  —  ${sugShort}` : "");
 
+  // timer
   if(!timer.running && timer.remaining===0){
     timerSet(parseRestToSeconds(it.target.rest));
   }
 
-  renderSingleSet();
-
-  // viewOnly: disabilita bottoni azione
-  const viewOnly = !!state.ui.sessionViewOnly;
-  const bSave = $("btnSaveSet");
-  const bNextSet = $("btnNextSet");
-  const bNextEx = $("btnNextExercise");
-  const bFinish = $("btnSessionFinish");
-
-  if(bSave) bSave.disabled = viewOnly;
-  if(bNextSet) bNextSet.disabled = viewOnly;
-  if(bNextEx) bNextEx.disabled = viewOnly;
-  if(bFinish) bFinish.disabled = viewOnly; // sessione chiusa: non “finishare” di nuovo
-
-  const hint = $("timerHint");
-  if(hint){
-    hint.textContent = viewOnly
-      ? "Sessione chiusa: modalità solo lettura."
-      : "Parte automaticamente dopo “Salva & Avvia timer”.";
+  // tasto “Chiudi” diventa toggle: Chiudi/Riapri
+  const btnFinish = $("btnSessionFinish");
+  if (btnFinish){
+    btnFinish.textContent = s.closed ? "Riapri" : "Chiudi";
   }
+
+  renderSingleSet();
 }
 
 function saveSetAndAutoTimer(){
-  if (state.ui.sessionViewOnly){
-    toast("Sessione chiusa: non modificabile");
-    return;
-  }
-
   const s=activeSession(); if(!s) return;
   const it=s.items[state.activeExIndex];
   const idx=state.activeSetIndex;
@@ -773,28 +882,18 @@ $("btnPrevEx")?.addEventListener("click", prevExercise);
 $("btnSessionExit")?.addEventListener("click", ()=>{
   closeSessionUI();
   state.activeSessionId=null;
-  state.ui.sessionViewOnly=false;
-  state.ui.sessionViewId=null;
+  state.ui.sessionOpenId=null;
   saveState();
 });
 
+// ✅ Toggle Chiusa/Riapri (ma la sessione resta modificabile)
 $("btnSessionFinish")?.addEventListener("click", ()=>{
-  if (state.ui.sessionViewOnly){
-    toast("Sessione chiusa: non modificabile");
-    return;
-  }
-
   const s=activeSession(); if(!s) return;
-  s.closed=true;
-  state.activeSessionId=null;
-  state.ui.sessionViewOnly=false;
-  state.ui.sessionViewId=null;
-  timerStop();
+  s.closed = !s.closed;
   saveState();
-  closeSessionUI();
+  renderSession();
   renderHistory();
-  renderPR();
-  toast("Sessione chiusa e salvata");
+  toast(s.closed ? "Segnata come chiusa" : "Riaperta");
 });
 
 $("btnTimerStart")?.addEventListener("click", timerStart);
@@ -1454,9 +1553,9 @@ function renderHistory(){
     div.innerHTML=`
       <div class="itemTop">
         <div class="itemTitle">${s.dayName}</div>
-        <div class="badge">${s.date}${s.closed?"":" • (aperta)"}</div>
+        <div class="badge">${s.date}${s.closed?" • (chiusa)":" • (aperta)"}</div>
       </div>
-      <div class="muted small">Tocca per aprire</div>
+      <div class="muted small">Tocca per aprire e modificare</div>
     `;
     box.appendChild(div);
   });
@@ -1660,7 +1759,6 @@ function ensureBaseData(){
   }
 
   // ✅ MIGRAZIONE: aggiungi ts alle vecchie sessioni senza ts
-  // (stima stabile: scagliono di 1s per evitare duplicati)
   let base = Date.now() - (state.sessions.length * 1000);
   for (let i=0;i<state.sessions.length;i++){
     const s = state.sessions[i];
@@ -1670,8 +1768,7 @@ function ensureBaseData(){
     }
   }
 
-  if (state.ui.sessionViewOnly === undefined) state.ui.sessionViewOnly = false;
-  if (state.ui.sessionViewId === undefined) state.ui.sessionViewId = null;
+  if (state.ui.sessionOpenId === undefined) state.ui.sessionOpenId = null;
 }
 
 function boot(){
