@@ -1,9 +1,9 @@
 /* Fit Planner — app.js (offline-first)
    ✅ Multi schede + multi diete
    ✅ Sessione dedicata (1 serie alla volta) + timer
-   ✅ Storico esercizio (Ultima/Best)
+   ✅ Storico esercizio (Ultima/Best) — CORRETTO (Best reale)
    ✅ Suggerimento progressione (PT)
-   ✅ Grafico progressione esercizio (canvas)
+   ✅ Grafico progressione esercizio (canvas) — PER SESSIONE (anche stesso giorno)
 */
 
 if ("serviceWorker" in navigator) {
@@ -140,31 +140,55 @@ function toReps(v){ const n=toNum(v); return (isFinite(n)&&n>=0)?n:NaN; }
 function normName(s){ return String(s||"").trim().toLowerCase(); }
 
 /* ================= STORICO + SUGGERIMENTI ================= */
+/* ✅ FIX: Best = max su tutte le sessioni (esclusa quella attiva)
+   ✅ Ultima = ultima sessione reale (ordinamento per ts, fallback su date) */
 function getExerciseLastBest(exName){
   const currentId = state.activeSessionId;
   const name = normName(exName);
-  let last=null;
-  let bestKg=null;
 
-  const sessions = [...state.sessions]
-    .filter(s => s && s.id !== currentId)
-    .sort((a,b) => (a.date||"") < (b.date||"") ? 1 : -1);
+  const others = state.sessions
+    .filter(s => s && s.id !== currentId);
 
-  for (const s of sessions){
+  // Best (tutte le sessioni)
+  let bestKg = null;
+  for (const s of others){
+    for (const it of (s.items||[])){
+      if (normName(it.ex) !== name) continue;
+      for (const st of (it.sets||[])){
+        const kg = toKg(st.kg);
+        if (isFinite(kg)) bestKg = (bestKg===null) ? kg : Math.max(bestKg, kg);
+      }
+    }
+  }
+
+  // Ultima (sessione più recente)
+  const sorted = [...others].sort((a,b)=>{
+    const at = a.ts || 0, bt = b.ts || 0;
+    if (at && bt) return bt - at;
+    return (a.date||"") < (b.date||"") ? 1 : -1;
+  });
+
+  let last = null;
+  for (const s of sorted){
     for (const it of (s.items||[])){
       if (normName(it.ex) !== name) continue;
       for (const st of (it.sets||[])){
         const kg = toKg(st.kg);
         const reps = toReps(st.reps);
         if (isFinite(kg)){
-          if (bestKg===null || kg>bestKg) bestKg=kg;
-          if (!last){
-            last = { date: s.date||"", kg, reps: isFinite(reps)?reps:null, rir: st.rir?String(st.rir):"" };
-          }
+          last = {
+            date: s.date||"",
+            kg,
+            reps: isFinite(reps)?reps:null,
+            rir: st.rir?String(st.rir):"",
+            ts: s.ts || 0
+          };
+          break;
         }
       }
+      if (last) break;
     }
-    if (last && bestKg!==null) break;
+    if (last) break;
   }
 
   return { last, bestKg };
@@ -226,12 +250,17 @@ function getAllExerciseNames(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
+/* ✅ FIX: PER SESSIONE (non per giorno) */
 function getExerciseDailySeries(exName){
   const name = normName(exName);
-  const byDate = new Map(); // date -> { best, sum, n, volume }
+  const rows = [];
 
   for (const s of state.sessions){
-    const date = s.date || "";
+    let best = 0;
+    let sum = 0;
+    let n = 0;
+    let volume = 0;
+
     for (const it of (s.items||[])){
       if (normName(it.ex) !== name) continue;
       for (const st of (it.sets||[])){
@@ -239,27 +268,37 @@ function getExerciseDailySeries(exName){
         const reps = toReps(st.reps);
         if (!isFinite(kg)) continue;
 
-        const obj = byDate.get(date) || { best: 0, sum: 0, n: 0, volume: 0 };
-        obj.best = Math.max(obj.best, kg);
-        obj.sum += kg;
-        obj.n += 1;
-        if (isFinite(reps)) obj.volume += kg * reps;
-        byDate.set(date, obj);
+        best = Math.max(best, kg);
+        sum += kg;
+        n += 1;
+        if (isFinite(reps)) volume += kg * reps;
       }
     }
+
+    if (n === 0) continue;
+
+    rows.push({
+      key: s.ts || 0,
+      date: s.date || "",
+      best,
+      avg: n ? (sum/n) : 0,
+      volume
+    });
   }
 
-  return Array.from(byDate.entries())
-    .map(([date,v])=>({ date, best:v.best, avg: v.n? (v.sum/v.n):0, volume: v.volume }))
-    .sort((a,b)=> (a.date<b.date?-1:1));
+  rows.sort((a,b)=> (a.key||0) - (b.key||0));
+  return rows;
 }
 
 function drawChart(canvas, rows, mode){
   if(!canvas) return;
   const ctx = canvas.getContext("2d");
 
-  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
-  const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+  const cssW = canvas.clientWidth || canvas.parentElement?.clientWidth || 320;
+  const cssH = canvas.clientHeight || Number(canvas.getAttribute("height")) || 140;
+
+  const w = canvas.width = Math.round(cssW * devicePixelRatio);
+  const h = canvas.height = Math.round(cssH * devicePixelRatio);
   ctx.clearRect(0,0,w,h);
 
   if(!rows.length){
@@ -282,7 +321,6 @@ function drawChart(canvas, rows, mode){
   const xTo = (i) => pad + (i/(Math.max(1, rows.length-1))) * (w - pad*2);
   const yTo = (v) => (h - pad) - ((v - min) / (max - min)) * (h - pad*2);
 
-  // assi
   ctx.globalAlpha = 0.35;
   ctx.lineWidth = 1*devicePixelRatio;
   ctx.beginPath();
@@ -292,7 +330,6 @@ function drawChart(canvas, rows, mode){
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // linea
   ctx.lineWidth = 2*devicePixelRatio;
   ctx.beginPath();
   rows.forEach((r,i)=>{
@@ -301,13 +338,11 @@ function drawChart(canvas, rows, mode){
   });
   ctx.stroke();
 
-  // punti
   rows.forEach((r,i)=>{
     const x=xTo(i), y=yTo(r[mode]);
-    ctx.beginPath(); ctx.arc(x,y,3.5*devicePixelRatio,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,5*devicePixelRatio,0,Math.PI*2); ctx.fill();
   });
 
-  // label ultimo punto
   const last = rows[rows.length-1];
   ctx.font = `${12*devicePixelRatio}px system-ui`;
   ctx.globalAlpha = 0.8;
@@ -331,7 +366,6 @@ function renderExerciseProgressUI(){
     sel.appendChild(o);
   });
 
-  // restore preferenze
   if (state.ui.exProgMode) modeSel.value = state.ui.exProgMode;
   if (state.ui.exProgName && names.includes(state.ui.exProgName)) sel.value = state.ui.exProgName;
   if (!sel.value && names[0]) sel.value = names[0];
@@ -351,7 +385,7 @@ function renderExerciseProgressUI(){
       const last = rows[rows.length-1][mode];
       const delta = last - first;
       const sign = delta>=0 ? "+" : "";
-      sum.textContent = `Andamento: ${rows.length} date • ${sign}${delta.toFixed(1).replace(".0","")} (${mode})`;
+      sum.textContent = `Andamento: ${rows.length} sessioni • ${sign}${delta.toFixed(1).replace(".0","")} (${mode})`;
     }
     drawChart(canvas, rows, mode);
   };
@@ -495,6 +529,7 @@ function startSession(dayId){
 
   const session={
     id:uid(),
+    ts: Date.now(),                // ✅ FIX: timestamp univoco per sessione
     date:todayISO(),
     planId: plan.id,
     dayId:day.id,
@@ -565,7 +600,6 @@ function renderSingleSet(){
     </div>
   `;
 
-  // auto-compila kg suggerito SOLO se vuoto
   if (sug?.kgSuggested && !String(st.kg||"").trim()){
     st.kg = sug.kgSuggested.toFixed(1).replace(".0","");
     saveState();
@@ -1310,7 +1344,13 @@ function showGrocery(){
 function renderHistory(){
   const box=$("sessionHistory"); if(!box) return;
   box.innerHTML="";
-  const sessions=[...state.sessions].sort((a,b)=>a.date<b.date?1:-1);
+
+  const sessions=[...state.sessions].sort((a,b)=>{
+    const at=a.ts||0, bt=b.ts||0;
+    if(at && bt) return bt-at;
+    return (a.date<b.date)?1:-1;
+  });
+
   if(!sessions.length){ box.innerHTML=`<div class="muted">Nessuna sessione.</div>`; return; }
   sessions.slice(0,60).forEach(s=>{
     const div=document.createElement("div");
@@ -1519,6 +1559,17 @@ function ensureBaseData(){
     state.activeDietId = d.id;
     delete state.dietPlan;
   }
+
+  // ✅ MIGRAZIONE: aggiungi ts alle vecchie sessioni senza ts
+  // (stima stabile: scagliono di 1s per evitare duplicati)
+  let base = Date.now() - (state.sessions.length * 1000);
+  for (let i=0;i<state.sessions.length;i++){
+    const s = state.sessions[i];
+    if (!s.ts){
+      base += 1000;
+      s.ts = base;
+    }
+  }
 }
 
 function boot(){
@@ -1544,7 +1595,6 @@ function boot(){
     closeSessionUI();
   }
 
-  // progress UI (solo quando entri, ma inizializzo se già presente)
   renderExerciseProgressUI();
 
   saveState();
