@@ -1,9 +1,10 @@
 /* Fit Planner — app.js (offline-first)
    ✅ Multi schede + multi diete
    ✅ Sessione dedicata (1 serie alla volta) + timer
-   ✅ Storico esercizio: Ultima / Best reale / Ultime 3 sessioni
+   ✅ Storico esercizio (Ultima/Best) — CORRETTO (Best reale)
    ✅ Suggerimento progressione (PT)
    ✅ Grafico progressione esercizio (canvas) — PER SESSIONE (anche stesso giorno)
+   ✅ TAP su “Storico sessioni” -> apre la sessione (chiusa = sola lettura)
 */
 
 if ("serviceWorker" in navigator) {
@@ -36,7 +37,9 @@ const DEFAULT = {
   ui: {
     planEditId: null, planEditDayId: null,
     dietEditId: null, dietEditDayIndex: 0, dietEditMeal: 1,
-    exProgName: "", exProgMode: "best"
+    exProgName: "", exProgMode: "best",
+    sessionViewOnly: false,
+    sessionViewId: null
   }
 };
 
@@ -124,6 +127,7 @@ function fmtMMSS(sec){
   return String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
 }
 function moveItem(arr, from, to){
+  if (!Array.isArray(arr)) return;
   if (to < 0 || to >= arr.length) return;
   const x = arr.splice(from,1)[0];
   arr.splice(to,0,x);
@@ -140,14 +144,14 @@ function toReps(v){ const n=toNum(v); return (isFinite(n)&&n>=0)?n:NaN; }
 function normName(s){ return String(s||"").trim().toLowerCase(); }
 
 /* ================= STORICO + SUGGERIMENTI ================= */
-/* ✅ Best = max su tutte le sessioni (esclusa quella attiva)
-   ✅ Ultima = sessione più recente (ordinamento per ts, fallback su date)
-   ✅ Ultime 3 sessioni = “riassunto” utile per vedere trend */
+/* ✅ FIX: Best = max su tutte le sessioni (esclusa quella attiva)
+   ✅ Ultima = ultima sessione reale (ordinamento per ts, fallback su date) */
 function getExerciseLastBest(exName){
   const currentId = state.activeSessionId;
   const name = normName(exName);
 
-  const others = state.sessions.filter(s => s && s.id !== currentId);
+  const others = state.sessions
+    .filter(s => s && s.id !== currentId);
 
   // Best (tutte le sessioni)
   let bestKg = null;
@@ -161,7 +165,7 @@ function getExerciseLastBest(exName){
     }
   }
 
-  // Ultima (più recente)
+  // Ultima (sessione più recente)
   const sorted = [...others].sort((a,b)=>{
     const at = a.ts || 0, bt = b.ts || 0;
     if (at && bt) return bt - at;
@@ -194,40 +198,6 @@ function getExerciseLastBest(exName){
   return { last, bestKg };
 }
 
-function getExerciseLastNSessions(exName, n=3){
-  const currentId = state.activeSessionId;
-  const name = normName(exName);
-
-  const sessions = state.sessions
-    .filter(s => s && s.id !== currentId)
-    .sort((a,b)=>{
-      const at = a.ts || 0, bt = b.ts || 0;
-      if (at && bt) return bt - at;
-      return (a.date||"") < (b.date||"") ? 1 : -1;
-    });
-
-  const out = [];
-  for (const s of sessions){
-    // best set within THIS session for the exercise
-    let bestSet = null;
-    for (const it of (s.items||[])){
-      if (normName(it.ex) !== name) continue;
-      for (const st of (it.sets||[])){
-        const kg = toKg(st.kg);
-        const reps = toReps(st.reps);
-        if (!isFinite(kg)) continue;
-        const cand = { kg, reps: isFinite(reps)?reps:null, rir: st.rir?String(st.rir):"", date:s.date||"", ts:s.ts||0 };
-        if (!bestSet || cand.kg > bestSet.kg) bestSet = cand;
-      }
-    }
-    if (bestSet){
-      out.push(bestSet);
-      if (out.length >= n) break;
-    }
-  }
-  return out; // [ {kg,reps,rir,date,ts}, ... ]
-}
-
 function fmtHistoryLine(h){
   const l = h?.last;
   const lastTxt = l
@@ -235,17 +205,6 @@ function fmtHistoryLine(h){
     : "";
   const bestTxt = (h?.bestKg!==null && h?.bestKg!==undefined) ? `Best: ${h.bestKg.toFixed(1).replace(".0","")}kg` : "";
   return lastTxt && bestTxt ? `${lastTxt}  |  ${bestTxt}` : (lastTxt || bestTxt);
-}
-
-function fmtLastN(list){
-  if (!list || !list.length) return "";
-  // esempio: "1) 10kg x 8 • 2026-02-10"
-  return list.map((x,i)=>{
-    const kg = x.kg.toFixed(1).replace(".0","");
-    const reps = x.reps!==null && x.reps!==undefined ? ` x ${x.reps}` : "";
-    const rir = x.rir ? ` (RIR ${x.rir})` : "";
-    return `${i+1}) ${kg}kg${reps}${rir} • ${x.date}`;
-  }).join("<br>");
 }
 
 function suggestNextTarget(exName, target){
@@ -295,7 +254,7 @@ function getAllExerciseNames(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
-/* ✅ PER SESSIONE (non per giorno) */
+/* ✅ FIX: PER SESSIONE (non per giorno) */
 function getExerciseDailySeries(exName){
   const name = normName(exName);
   const rows = [];
@@ -452,7 +411,36 @@ function setView(view){
     renderExerciseProgressUI();
   }
 }
+
+/* ================= TAP: apri sessione dallo storico ================= */
+function openSessionFromHistory(sessionId){
+  const s = state.sessions.find(x => x.id === sessionId);
+  if(!s){ toast("Sessione non trovata"); return; }
+
+  state.ui.sessionViewOnly = !!s.closed;
+  state.ui.sessionViewId = s.id;
+
+  state.activeSessionId = s.id;
+  state.activeExIndex = 0;
+  state.activeSetIndex = 0;
+
+  saveState();
+  openSessionUI();
+  renderSession();
+
+  toast(s.closed ? "Sessione (solo lettura)" : "Sessione ripresa");
+}
+
 document.addEventListener("click",(e)=>{
+  // 1) tap su storico sessioni
+  const open = e.target.closest("[data-session-open]");
+  if(open){
+    const id = open.getAttribute("data-session-id");
+    openSessionFromHistory(id);
+    return;
+  }
+
+  // 2) tabs / jump
   const tab=e.target.closest(".tab"); if(tab) setView(tab.dataset.view);
   const jump=e.target.closest("[data-jump]"); if(jump) setView(jump.dataset.jump);
 });
@@ -555,12 +543,12 @@ function timerAutoFromExercise(){
 }
 
 function openSessionUI(){
-  $("session").classList.remove("hidden");
+  $("session")?.classList.remove("hidden");
   document.body.classList.add("session-open");
   document.body.style.overflow="hidden";
 }
 function closeSessionUI(){
-  $("session").classList.add("hidden");
+  $("session")?.classList.add("hidden");
   document.body.classList.remove("session-open");
   document.body.style.overflow="";
   timerStop();
@@ -592,6 +580,10 @@ function startSession(dayId){
   state.activeSessionId=session.id;
   state.activeExIndex=0;
   state.activeSetIndex=0;
+
+  state.ui.sessionViewOnly = false;
+  state.ui.sessionViewId = session.id;
+
   saveState();
 
   openSessionUI();
@@ -613,9 +605,6 @@ function renderSingleSet(){
   const hist = getExerciseLastBest(it.ex);
   const histLine = fmtHistoryLine(hist);
 
-  const last3 = getExerciseLastNSessions(it.ex, 3);
-  const last3Html = fmtLastN(last3);
-
   const sug = suggestNextTarget(it.ex, it.target);
   const sugLine = sug?.message || "";
 
@@ -623,11 +612,10 @@ function renderSingleSet(){
     <div class="singleCard">
       <div class="singleTop">
         <div class="singleTitle">Serie ${idx+1} di ${it.sets.length}</div>
-        <div class="badge">ATTIVA</div>
+        <div class="badge">${state.ui.sessionViewOnly ? "VIEW" : "ATTIVA"}</div>
       </div>
 
       ${histLine ? `<div class="tip" style="margin:0 0 10px 0">${histLine}</div>` : ""}
-      ${last3Html ? `<div class="tip" style="margin:0 0 10px 0"><b>Ultime 3 sessioni (best set):</b><br>${last3Html}</div>` : ""}
       ${sugLine ? `<div class="tip" style="margin:0 0 10px 0"><b>Suggerimento:</b> ${sugLine}</div>` : ""}
 
       <div class="singleGrid">
@@ -649,21 +637,36 @@ function renderSingleSet(){
     </div>
   `;
 
-  // auto-compila kg suggerito SOLO se vuoto
-  if (sug?.kgSuggested && !String(st.kg||"").trim()){
+  // auto-compila kg suggerito SOLO se vuoto e SOLO in modalità edit
+  if (!state.ui.sessionViewOnly && sug?.kgSuggested && !String(st.kg||"").trim()){
     st.kg = sug.kgSuggested.toFixed(1).replace(".0","");
     saveState();
     $("inKg").value = st.kg;
   }
 
-  $("inKg").addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
-  $("inReps").addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
-  $("inRir").addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
+  const inKg = $("inKg");
+  const inReps = $("inReps");
+  const inRir = $("inRir");
+
+  // modalità sola lettura: disabilita input
+  if (state.ui.sessionViewOnly){
+    if(inKg) inKg.disabled = true;
+    if(inReps) inReps.disabled = true;
+    if(inRir) inRir.disabled = true;
+    return;
+  }
+
+  inKg?.addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
+  inReps?.addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
+  inRir?.addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
 }
 
 function renderSession(){
   const s=activeSession();
   if(!s) return closeSessionUI();
+
+  // sicurezza: se sto aprendo una sessione dallo storico chiusa, forza viewOnly
+  if (state.ui.sessionViewId === s.id && s.closed) state.ui.sessionViewOnly = true;
 
   $("sessionDay").textContent=s.dayName;
   $("sessionDate").textContent=s.date;
@@ -686,10 +689,35 @@ function renderSession(){
   if(!timer.running && timer.remaining===0){
     timerSet(parseRestToSeconds(it.target.rest));
   }
+
   renderSingleSet();
+
+  // viewOnly: disabilita bottoni azione
+  const viewOnly = !!state.ui.sessionViewOnly;
+  const bSave = $("btnSaveSet");
+  const bNextSet = $("btnNextSet");
+  const bNextEx = $("btnNextExercise");
+  const bFinish = $("btnSessionFinish");
+
+  if(bSave) bSave.disabled = viewOnly;
+  if(bNextSet) bNextSet.disabled = viewOnly;
+  if(bNextEx) bNextEx.disabled = viewOnly;
+  if(bFinish) bFinish.disabled = viewOnly; // sessione chiusa: non “finishare” di nuovo
+
+  const hint = $("timerHint");
+  if(hint){
+    hint.textContent = viewOnly
+      ? "Sessione chiusa: modalità solo lettura."
+      : "Parte automaticamente dopo “Salva & Avvia timer”.";
+  }
 }
 
 function saveSetAndAutoTimer(){
+  if (state.ui.sessionViewOnly){
+    toast("Sessione chiusa: non modificabile");
+    return;
+  }
+
   const s=activeSession(); if(!s) return;
   const it=s.items[state.activeExIndex];
   const idx=state.activeSetIndex;
@@ -745,12 +773,22 @@ $("btnPrevEx")?.addEventListener("click", prevExercise);
 $("btnSessionExit")?.addEventListener("click", ()=>{
   closeSessionUI();
   state.activeSessionId=null;
+  state.ui.sessionViewOnly=false;
+  state.ui.sessionViewId=null;
   saveState();
 });
+
 $("btnSessionFinish")?.addEventListener("click", ()=>{
+  if (state.ui.sessionViewOnly){
+    toast("Sessione chiusa: non modificabile");
+    return;
+  }
+
   const s=activeSession(); if(!s) return;
   s.closed=true;
   state.activeSessionId=null;
+  state.ui.sessionViewOnly=false;
+  state.ui.sessionViewId=null;
   timerStop();
   saveState();
   closeSessionUI();
@@ -1401,15 +1439,25 @@ function renderHistory(){
     return (a.date<b.date)?1:-1;
   });
 
-  if(!sessions.length){ box.innerHTML=`<div class="muted">Nessuna sessione.</div>`; return; }
+  if(!sessions.length){
+    box.innerHTML=`<div class="muted">Nessuna sessione.</div>`;
+    return;
+  }
+
   sessions.slice(0,60).forEach(s=>{
     const div=document.createElement("div");
     div.className="item";
+    div.style.cursor = "pointer";
+    div.setAttribute("data-session-open","1");
+    div.setAttribute("data-session-id", s.id);
+
     div.innerHTML=`
       <div class="itemTop">
         <div class="itemTitle">${s.dayName}</div>
         <div class="badge">${s.date}${s.closed?"":" • (aperta)"}</div>
-      </div>`;
+      </div>
+      <div class="muted small">Tocca per aprire</div>
+    `;
     box.appendChild(div);
   });
 }
@@ -1590,6 +1638,7 @@ function ensureBaseData(){
   if(!state.plans) state.plans = [];
   if(!state.diets) state.diets = [];
   if(!state.sessions) state.sessions = [];
+  if(!state.ui) state.ui = clone(DEFAULT.ui);
 
   if(!state.activePlanId) state.activePlanId = state.plans[0]?.id || null;
   if(!state.activeDietId) state.activeDietId = state.diets[0]?.id || null;
@@ -1620,6 +1669,9 @@ function ensureBaseData(){
       s.ts = base;
     }
   }
+
+  if (state.ui.sessionViewOnly === undefined) state.ui.sessionViewOnly = false;
+  if (state.ui.sessionViewId === undefined) state.ui.sessionViewId = null;
 }
 
 function boot(){
@@ -1646,7 +1698,7 @@ function boot(){
   }
 
   renderExerciseProgressUI();
-
   saveState();
 }
+
 boot();
