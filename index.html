@@ -16,6 +16,7 @@
       <div class="logo">FP</div>
       <div class="brandText">
         <div class="title">Fit Planner</div>
+        <div class="subtitle">Allenamento + Dieta • Offline</div>
       </div>
     </div>
 
@@ -29,6 +30,7 @@
   </header>
 
   <main class="wrap">
+
     <!-- HOME -->
     <section class="view" id="view-home">
       <div class="grid">
@@ -61,7 +63,7 @@
         <div class="card">
           <h2>Azioni rapide</h2>
           <div class="actions">
-            <button class="btn" data-jump="workout">Allenamento</button>
+            <button class="btn" data-jump="workout">Scheda</button>
             <button class="btn" data-jump="diet">Dieta</button>
             <button class="btn" id="btnGrocery">Lista spesa</button>
             <button class="btn" id="btnBackup">Backup</button>
@@ -83,14 +85,16 @@
           </div>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
+            <label class="field" style="min-width:220px; flex:1">
               <span>Scheda attiva</span>
               <select id="activePlanSelect"></select>
             </label>
-            <label class="field">
+
+            <label class="field" style="min-width:240px; flex:1">
               <span>Giorno</span>
               <select id="daySelect"></select>
             </label>
+
             <button class="btn primary" id="btnStartDay">Avvia sessione</button>
           </div>
 
@@ -98,31 +102,25 @@
         </div>
 
         <div class="card">
-          <h2>Consigli rapidi</h2>
-          <div class="tip"><b>RIR</b> = reps in serbatoio. Fondamentali RIR 1–2, isolamenti RIR 0–1.</div>
-          <div class="tip"><b>Progressione</b>: raggiungi top range → +1–2 kg o +2,5% la prossima volta.</div>
+          <h2>Note PT</h2>
+          <div class="tip"><b>RIR</b> = Reps In Reserve: quante ripetizioni “in serbatoio”.</div>
+          <div class="tip"><b>Progressione</b>: se arrivi al top range con tecnica pulita → aumenta leggermente il carico o le reps.</div>
+          <div class="tip"><b>Timer</b>: dopo “Salva & Avvia timer” parte il recupero automatico del tuo esercizio.</div>
         </div>
       </div>
     </section>
 
-    <!-- LIBRERIA SCHEDE -->
+    <!-- LE MIE SCHEDE -->
     <section class="view hidden" id="view-plans">
-      <div class="grid">
-        <div class="card">
-          <div class="cardHead">
-            <h2>Le mie schede</h2>
-            <div class="row">
-              <button class="btn" id="btnPlansBack">← Indietro</button>
-              <button class="btn primary" id="btnPlanNew">+ Nuova scheda</button>
-            </div>
+      <div class="card">
+        <div class="cardHead">
+          <h2>Le mie schede</h2>
+          <div class="row">
+            <button class="btn" id="btnPlansBack">← Indietro</button>
+            <button class="btn primary" id="btnPlanNew">+ Nuova scheda</button>
           </div>
-          <div id="plansList" class="list"></div>
         </div>
-
-        <div class="card">
-          <h2>Tip</h2>
-          <div class="tip">Crea più schede (es. Ipertrofia, Forza, Richiamo). Poi seleziona quella attiva da “Allenamento”.</div>
-        </div>
+        <div id="plansList" class="list"></div>
       </div>
     </section>
 
@@ -133,57 +131,73 @@
           <div class="cardHead">
             <h2 id="planEditTitle">Editor Scheda</h2>
             <div class="row">
-              <button class="btn" id="btnPlanEditBack">← Schede</button>
+              <button class="btn" id="btnPlanEditBack">← Indietro</button>
               <button class="btn danger" id="btnPlanDelete">Elimina scheda</button>
             </div>
           </div>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
+            <label class="field" style="min-width:260px; flex:1">
               <span>Nome scheda</span>
-              <input id="planName" placeholder="Es. Ipertrofia 4 giorni" />
+              <input id="planName" type="text" placeholder="Es. Ipertrofia 4gg" />
             </label>
-            <button class="btn primary" id="btnPlanSaveName">Salva</button>
+            <button class="btn primary" id="btnPlanSaveName">Salva nome</button>
           </div>
 
+          <h2 style="margin-top:14px">Giorni</h2>
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
-              <span>Aggiungi giorno</span>
-              <input id="newDayName" placeholder="Es. Lunedì – Upper" />
+            <label class="field" style="min-width:260px; flex:1">
+              <span>Nuovo giorno</span>
+              <input id="newDayName" type="text" placeholder="Es. Lunedì – Upper" />
             </label>
-            <button class="btn primary" id="btnAddDay">Aggiungi</button>
+            <button class="btn primary" id="btnAddDay">Aggiungi giorno</button>
+            <button class="btn" id="btnDuplicateDay">Duplica giorno selezionato</button>
           </div>
 
           <div id="planDaysList" class="list"></div>
         </div>
 
         <div class="card">
-          <h2>Esercizi del giorno</h2>
+          <h2>Esercizi</h2>
 
           <div class="row">
-            <label class="field" style="min-width:240px; flex:1">
+            <label class="field" style="min-width:260px; flex:1">
               <span>Giorno selezionato</span>
               <select id="planDaySelect"></select>
             </label>
-            <button class="btn" id="btnDuplicateDay">Duplica giorno</button>
           </div>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
-              <span>Nome esercizio</span>
-              <input id="exNameIn" placeholder="Es. Panca piana bilanciere" />
+            <label class="field" style="min-width:240px; flex:1">
+              <span>Esercizio</span>
+              <input id="exNameIn" type="text" placeholder="Es. Panca piana bilanciere" />
             </label>
-          </div>
 
-          <div class="row">
-            <label class="field"><span>Serie</span><input id="exSetsIn" type="number" min="1" step="1" value="3"></label>
-            <label class="field"><span>Rep min</span><input id="exRepMinIn" type="number" min="1" step="1" value="8"></label>
-            <label class="field"><span>Rep max</span><input id="exRepMaxIn" type="number" min="1" step="1" value="12"></label>
-            <label class="field"><span>RIR</span><input id="exRirIn" placeholder="1-2" value="1-2"></label>
-            <label class="field"><span>Recupero</span><input id="exRestIn" placeholder="90 o 2:00" value="90"></label>
-          </div>
+            <label class="field">
+              <span>Serie</span>
+              <input id="exSetsIn" type="number" min="1" step="1" value="3" />
+            </label>
 
-          <div class="row">
+            <label class="field">
+              <span>Reps min</span>
+              <input id="exRepMinIn" type="number" min="1" step="1" value="8" />
+            </label>
+
+            <label class="field">
+              <span>Reps max</span>
+              <input id="exRepMaxIn" type="number" min="1" step="1" value="10" />
+            </label>
+
+            <label class="field">
+              <span>RIR</span>
+              <input id="exRirIn" type="text" value="1-2" />
+            </label>
+
+            <label class="field">
+              <span>Recupero</span>
+              <input id="exRestIn" type="text" value="90" placeholder="Es. 90 oppure 2:00" />
+            </label>
+
             <button class="btn primary" id="btnAddExercise">Aggiungi esercizio</button>
           </div>
 
@@ -199,21 +213,23 @@
           <div class="cardHead">
             <h2>Dieta</h2>
             <div class="row">
-              <button class="btn" id="btnLoadDefaultDiet">Carica dieta base</button>
+              <button class="btn" id="btnLoadDefaultDiet">Carica dieta</button>
               <button class="btn primary" id="btnOpenDiets">Le mie diete</button>
               <button class="btn" id="btnGenerateGrocery">Lista spesa</button>
             </div>
           </div>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
+            <label class="field" style="min-width:220px; flex:1">
               <span>Dieta attiva</span>
               <select id="activeDietSelect"></select>
             </label>
+
             <label class="field">
               <span>Giorno</span>
               <select id="dietDaySelect"></select>
             </label>
+
             <label class="field">
               <span>Pasto</span>
               <select id="mealSelect">
@@ -241,24 +257,17 @@
       </div>
     </section>
 
-    <!-- LIBRERIA DIETE -->
+    <!-- LE MIE DIETE -->
     <section class="view hidden" id="view-diets">
-      <div class="grid">
-        <div class="card">
-          <div class="cardHead">
-            <h2>Le mie diete</h2>
-            <div class="row">
-              <button class="btn" id="btnDietsBack">← Indietro</button>
-              <button class="btn primary" id="btnDietNew">+ Nuova dieta</button>
-            </div>
+      <div class="card">
+        <div class="cardHead">
+          <h2>Le mie diete</h2>
+          <div class="row">
+            <button class="btn" id="btnDietsBack">← Indietro</button>
+            <button class="btn primary" id="btnDietNew">+ Nuova dieta</button>
           </div>
-          <div id="dietsList" class="list"></div>
         </div>
-
-        <div class="card">
-          <h2>Tip</h2>
-          <div class="tip">Crea più diete (es. Massa, Cut, Mantenimento). Poi seleziona quella attiva da “Dieta”.</div>
-        </div>
+        <div id="dietsList" class="list"></div>
       </div>
     </section>
 
@@ -269,17 +278,17 @@
           <div class="cardHead">
             <h2 id="dietEditTitle">Editor Dieta</h2>
             <div class="row">
-              <button class="btn" id="btnDietEditBack">← Diete</button>
+              <button class="btn" id="btnDietEditBack">← Indietro</button>
               <button class="btn danger" id="btnDietDelete">Elimina dieta</button>
             </div>
           </div>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
+            <label class="field" style="min-width:260px; flex:1">
               <span>Nome dieta</span>
-              <input id="dietName" placeholder="Es. Massa pulita 5 pasti" />
+              <input id="dietName" type="text" placeholder="Es. Massa pulita" />
             </label>
-            <button class="btn primary" id="btnDietSaveName">Salva</button>
+            <button class="btn primary" id="btnDietSaveName">Salva nome</button>
           </div>
 
           <div class="row">
@@ -287,7 +296,7 @@
               <span>Giorno</span>
               <select id="dietEditDaySelect"></select>
             </label>
-            <label class="field" style="min-width:180px">
+            <label class="field" style="min-width:160px">
               <span>Pasto</span>
               <select id="dietEditMealSelect">
                 <option value="1">Pasto 1</option>
@@ -297,18 +306,24 @@
                 <option value="5">Pasto 5</option>
               </select>
             </label>
+
+            <button class="btn" id="btnCopyDayToAll">Copia giorno su tutti</button>
             <button class="btn" id="btnCopyMealToAllDays">Copia pasto su tutti</button>
           </div>
+        </div>
+
+        <div class="card">
+          <h2>Alimenti del pasto</h2>
 
           <div class="row">
-            <label class="field" style="flex:1; min-width:220px">
+            <label class="field" style="min-width:240px; flex:1">
               <span>Alimento</span>
-              <input id="foodNameIn" placeholder="Es. Riso basmati" />
+              <input id="foodNameIn" type="text" placeholder="Es. Riso basmati" />
             </label>
-          </div>
-
-          <div class="row">
-            <label class="field"><span>Quantità</span><input id="foodQtyIn" type="number" min="0" step="1" value="100"></label>
+            <label class="field">
+              <span>Quantità</span>
+              <input id="foodQtyIn" type="number" min="0" step="1" value="100" />
+            </label>
             <label class="field">
               <span>Unità</span>
               <select id="foodUnitIn">
@@ -320,16 +335,7 @@
             <button class="btn primary" id="btnAddFood">Aggiungi</button>
           </div>
 
-          <div class="row">
-            <button class="btn" id="btnCopyDayToAll">Copia giorno su tutti</button>
-          </div>
-
           <div id="dietFoodsList" class="list"></div>
-        </div>
-
-        <div class="card">
-          <h2>Note</h2>
-          <div class="tip">Modifica qui la dieta attiva o crea nuove diete. La lista spesa si calcola automaticamente.</div>
         </div>
       </div>
     </section>
@@ -341,9 +347,37 @@
           <h2>Storico sessioni</h2>
           <div id="sessionHistory" class="list"></div>
         </div>
+
         <div class="card">
           <h2>PR (base)</h2>
           <div id="prBox" class="list"></div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1;">
+          <h2>Progressione esercizio</h2>
+
+          <div class="row">
+            <label class="field" style="min-width:260px; flex:1">
+              <span>Esercizio</span>
+              <select id="exProgressSelect"></select>
+            </label>
+            <label class="field" style="min-width:180px">
+              <span>Modalità</span>
+              <select id="exProgressMode">
+                <option value="best">Miglior kg (giorno)</option>
+                <option value="avg">Media kg (giorno)</option>
+                <option value="volume">Volume (kg * reps)</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="tip" id="exProgressSummary" style="margin-top:10px">
+            Seleziona un esercizio per vedere l’andamento.
+          </div>
+
+          <div class="item" style="margin-top:10px">
+            <canvas id="exProgressChart" height="140" style="width:100%; display:block;"></canvas>
+          </div>
         </div>
       </div>
     </section>
@@ -353,16 +387,19 @@
       <div class="grid">
         <div class="card">
           <h2>Profilo & target</h2>
+
           <div class="row">
             <label class="field"><span>Peso (kg)</span><input id="setWeight" type="number" step="0.1" /></label>
             <label class="field"><span>Pasti al giorno</span><input id="setMeals" type="number" min="3" max="6" /></label>
           </div>
+
           <div class="row">
             <label class="field"><span>Kcal</span><input id="setKcal" type="number" step="10" /></label>
             <label class="field"><span>Proteine (g)</span><input id="setP" type="number" step="1" /></label>
             <label class="field"><span>Carbo (g)</span><input id="setC" type="number" step="1" /></label>
             <label class="field"><span>Grassi (g)</span><input id="setF" type="number" step="1" /></label>
           </div>
+
           <div class="row">
             <button class="btn primary" id="btnSaveSettings">Salva</button>
           </div>
@@ -379,6 +416,7 @@
         </div>
       </div>
     </section>
+
   </main>
 
   <!-- SESSIONE DEDICATA (1 SERIE ALLA VOLTA) -->
