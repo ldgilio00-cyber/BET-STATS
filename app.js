@@ -529,7 +529,7 @@ function startSession(dayId){
 
   const session={
     id:uid(),
-    ts: Date.now(),                // ✅ FIX: timestamp univoco per sessione
+    ts: Date.now(),                // ✅ timestamp univoco per sessione
     date:todayISO(),
     planId: plan.id,
     dayId:day.id,
@@ -600,6 +600,7 @@ function renderSingleSet(){
     </div>
   `;
 
+  // auto-compila kg suggerito SOLO se vuoto
   if (sug?.kgSuggested && !String(st.kg||"").trim()){
     st.kg = sug.kgSuggested.toFixed(1).replace(".0","");
     saveState();
