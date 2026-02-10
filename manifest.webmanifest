@@ -2,6 +2,7 @@
   "name": "Fit Planner",
   "short_name": "FitPlanner",
   "start_url": "/BET-STATS/",
+  "scope": "/BET-STATS/",
   "display": "standalone",
   "background_color": "#f6f7fb",
   "theme_color": "#f6f7fb",
