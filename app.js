@@ -1,7 +1,7 @@
 /* Fit Planner — app.js (offline-first)
    ✅ Multi schede + multi diete
    ✅ Sessione dedicata (1 serie alla volta) + timer
-   ✅ Storico esercizio (Ultima/Best) — CORRETTO (Best reale)
+   ✅ Storico esercizio: Ultima / Best reale / Ultime 3 sessioni
    ✅ Suggerimento progressione (PT)
    ✅ Grafico progressione esercizio (canvas) — PER SESSIONE (anche stesso giorno)
 */
@@ -140,14 +140,14 @@ function toReps(v){ const n=toNum(v); return (isFinite(n)&&n>=0)?n:NaN; }
 function normName(s){ return String(s||"").trim().toLowerCase(); }
 
 /* ================= STORICO + SUGGERIMENTI ================= */
-/* ✅ FIX: Best = max su tutte le sessioni (esclusa quella attiva)
-   ✅ Ultima = ultima sessione reale (ordinamento per ts, fallback su date) */
+/* ✅ Best = max su tutte le sessioni (esclusa quella attiva)
+   ✅ Ultima = sessione più recente (ordinamento per ts, fallback su date)
+   ✅ Ultime 3 sessioni = “riassunto” utile per vedere trend */
 function getExerciseLastBest(exName){
   const currentId = state.activeSessionId;
   const name = normName(exName);
 
-  const others = state.sessions
-    .filter(s => s && s.id !== currentId);
+  const others = state.sessions.filter(s => s && s.id !== currentId);
 
   // Best (tutte le sessioni)
   let bestKg = null;
@@ -161,7 +161,7 @@ function getExerciseLastBest(exName){
     }
   }
 
-  // Ultima (sessione più recente)
+  // Ultima (più recente)
   const sorted = [...others].sort((a,b)=>{
     const at = a.ts || 0, bt = b.ts || 0;
     if (at && bt) return bt - at;
@@ -194,6 +194,40 @@ function getExerciseLastBest(exName){
   return { last, bestKg };
 }
 
+function getExerciseLastNSessions(exName, n=3){
+  const currentId = state.activeSessionId;
+  const name = normName(exName);
+
+  const sessions = state.sessions
+    .filter(s => s && s.id !== currentId)
+    .sort((a,b)=>{
+      const at = a.ts || 0, bt = b.ts || 0;
+      if (at && bt) return bt - at;
+      return (a.date||"") < (b.date||"") ? 1 : -1;
+    });
+
+  const out = [];
+  for (const s of sessions){
+    // best set within THIS session for the exercise
+    let bestSet = null;
+    for (const it of (s.items||[])){
+      if (normName(it.ex) !== name) continue;
+      for (const st of (it.sets||[])){
+        const kg = toKg(st.kg);
+        const reps = toReps(st.reps);
+        if (!isFinite(kg)) continue;
+        const cand = { kg, reps: isFinite(reps)?reps:null, rir: st.rir?String(st.rir):"", date:s.date||"", ts:s.ts||0 };
+        if (!bestSet || cand.kg > bestSet.kg) bestSet = cand;
+      }
+    }
+    if (bestSet){
+      out.push(bestSet);
+      if (out.length >= n) break;
+    }
+  }
+  return out; // [ {kg,reps,rir,date,ts}, ... ]
+}
+
 function fmtHistoryLine(h){
   const l = h?.last;
   const lastTxt = l
@@ -201,6 +235,17 @@ function fmtHistoryLine(h){
     : "";
   const bestTxt = (h?.bestKg!==null && h?.bestKg!==undefined) ? `Best: ${h.bestKg.toFixed(1).replace(".0","")}kg` : "";
   return lastTxt && bestTxt ? `${lastTxt}  |  ${bestTxt}` : (lastTxt || bestTxt);
+}
+
+function fmtLastN(list){
+  if (!list || !list.length) return "";
+  // esempio: "1) 10kg x 8 • 2026-02-10"
+  return list.map((x,i)=>{
+    const kg = x.kg.toFixed(1).replace(".0","");
+    const reps = x.reps!==null && x.reps!==undefined ? ` x ${x.reps}` : "";
+    const rir = x.rir ? ` (RIR ${x.rir})` : "";
+    return `${i+1}) ${kg}kg${reps}${rir} • ${x.date}`;
+  }).join("<br>");
 }
 
 function suggestNextTarget(exName, target){
@@ -250,7 +295,7 @@ function getAllExerciseNames(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
-/* ✅ FIX: PER SESSIONE (non per giorno) */
+/* ✅ PER SESSIONE (non per giorno) */
 function getExerciseDailySeries(exName){
   const name = normName(exName);
   const rows = [];
@@ -568,6 +613,9 @@ function renderSingleSet(){
   const hist = getExerciseLastBest(it.ex);
   const histLine = fmtHistoryLine(hist);
 
+  const last3 = getExerciseLastNSessions(it.ex, 3);
+  const last3Html = fmtLastN(last3);
+
   const sug = suggestNextTarget(it.ex, it.target);
   const sugLine = sug?.message || "";
 
@@ -579,6 +627,7 @@ function renderSingleSet(){
       </div>
 
       ${histLine ? `<div class="tip" style="margin:0 0 10px 0">${histLine}</div>` : ""}
+      ${last3Html ? `<div class="tip" style="margin:0 0 10px 0"><b>Ultime 3 sessioni (best set):</b><br>${last3Html}</div>` : ""}
       ${sugLine ? `<div class="tip" style="margin:0 0 10px 0"><b>Suggerimento:</b> ${sugLine}</div>` : ""}
 
       <div class="singleGrid">
