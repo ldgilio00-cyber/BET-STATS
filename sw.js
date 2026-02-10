@@ -1,5 +1,5 @@
 const CACHE = "fitplanner_gp_v21";
-const BASE = "/BET-STATS/";
+const BASE = "/FIT-P/";
 
 const ASSETS = [
   BASE,
