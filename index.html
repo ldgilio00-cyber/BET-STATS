@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#f6f7fb" />
 
   <link rel="manifest" href="/BET-STATS/manifest.webmanifest" />
@@ -345,11 +345,13 @@
       <div class="grid">
         <div class="card">
           <h2>Storico sessioni</h2>
+          <div class="tip">Tocca una sessione per vedere il dettaglio (e riprendere se è aperta).</div>
           <div id="sessionHistory" class="list"></div>
         </div>
 
         <div class="card">
-          <h2>PR (base)</h2>
+          <h2>PR (avanzati)</h2>
+          <div class="tip">PR = migliori carichi (e stime tipo 1RM). Tocca un esercizio in sessione per confrontare “Ultima/Best”.</div>
           <div id="prBox" class="list"></div>
         </div>
 
@@ -364,8 +366,8 @@
             <label class="field" style="min-width:180px">
               <span>Modalità</span>
               <select id="exProgressMode">
-                <option value="best">Miglior kg (giorno)</option>
-                <option value="avg">Media kg (giorno)</option>
+                <option value="best">Miglior kg (sessione)</option>
+                <option value="avg">Media kg (sessione)</option>
                 <option value="volume">Volume (kg * reps)</option>
               </select>
             </label>
@@ -458,6 +460,33 @@
       <button class="btn primary big" id="btnSaveSet">Salva & Avvia timer</button>
       <button class="btn big" id="btnNextSet">Prossima serie</button>
       <button class="btn big" id="btnNextExercise">Prossimo esercizio</button>
+    </div>
+  </section>
+
+  <!-- MODAL DETTAGLIO SESSIONE -->
+  <section class="session hidden" id="sessionModal" style="z-index:90;">
+    <div class="sessionTop">
+      <button class="btn ghost" id="btnSessionModalClose">← Chiudi</button>
+      <div class="sessionTitle">
+        <div class="sessionDay" id="modalTitle">Dettaglio sessione</div>
+        <div class="sessionDate" id="modalSub">—</div>
+      </div>
+      <button class="btn danger" id="btnSessionModalDelete">Elimina</button>
+    </div>
+
+    <div class="sessionBody" style="padding-bottom: 100px;">
+      <div class="card" style="margin-top:14px;">
+        <div class="row" style="justify-content:space-between;">
+          <div class="pill" id="modalStatus">—</div>
+          <button class="btn primary" id="btnSessionModalResume">Riprendi</button>
+        </div>
+        <div class="tip" id="modalSummary" style="margin-top:10px;">—</div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2>Dettaglio</h2>
+        <div id="modalBody" class="list"></div>
+      </div>
     </div>
   </section>
 
