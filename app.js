@@ -61,52 +61,7 @@ function toast(msg){
   toast._tm = setTimeout(() => t.classList.remove("show"), 1400);
 }
 
-/* ---------------- defaults ---------------- */
-function defaultWorkout4Days(){
-  return {
-    id: uid().slice(0,8),
-    name: "Ipertrofia 4 giorni (Upper/Lower)",
-    days: [
-      { id:"mon", name:"Lunedì – UPPER 1", exercises:[
-        { ex:"Panca piana bilanciere", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
-        { ex:"Trazioni zavorrate", sets:4, repMin:6, repMax:8, rir:"1-2", rest:"2:00" },
-        { ex:"Panca inclinata manubri", sets:3, repMin:8, repMax:10, rir:"1-2", rest:"90" }
-      ]},
-      { id:"tue", name:"Martedì – LOWER 1", exercises:[
-        { ex:"Squat", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:30" },
-        { ex:"Stacco rumeno (RDL)", sets:3, repMin:6, repMax:9, rir:"1-2", rest:"2:00" },
-        { ex:"Leg press", sets:3, repMin:10, repMax:12, rir:"1", rest:"90" }
-      ]},
-      { id:"thu", name:"Giovedì – UPPER 2", exercises:[
-        { ex:"Military press", sets:4, repMin:5, repMax:7, rir:"1-2", rest:"2:00" },
-        { ex:"Lat machine presa larga", sets:3, repMin:8, repMax:12, rir:"1-2", rest:"90" },
-        { ex:"Croci ai cavi", sets:2, repMin:12, repMax:15, rir:"0-1", rest:"60" }
-      ]},
-      { id:"fri", name:"Venerdì – LOWER 2", exercises:[
-        { ex:"Stacco tecnico", sets:3, repMin:3, repMax:5, rir:"2", rest:"2:30" },
-        { ex:"Hip thrust", sets:4, repMin:6, repMax:10, rir:"1-2", rest:"2:00" },
-        { ex:"Calf raise seduto", sets:4, repMin:12, repMax:20, rir:"0-1", rest:"60" }
-      ]}
-    ]
-  };
-}
 
-function defaultDietWeek(){
-  const day = {
-    meals:{
-      1:[{food:"Yogurt greco 0%",qty:250,unit:"g"},{food:"Avena",qty:80,unit:"g"},{food:"Banana",qty:1,unit:"pz"}],
-      2:[{food:"Whey",qty:30,unit:"g"}],
-      3:[{food:"Riso basmati",qty:120,unit:"g"},{food:"Petto di pollo",qty:200,unit:"g"},{food:"Verdure",qty:300,unit:"g"},{food:"Olio EVO",qty:10,unit:"g"}],
-      4:[{food:"Pane",qty:120,unit:"g"},{food:"Bresaola",qty:120,unit:"g"}],
-      5:[{food:"Uova intere",qty:3,unit:"pz"},{food:"Albumi",qty:200,unit:"g"},{food:"Patate",qty:400,unit:"g"},{food:"Olio EVO",qty:10,unit:"g"}]
-    }
-  };
-  return {
-    id: uid().slice(0,8),
-    name:"Routine massa pulita",
-    week:Array.from({length:7},()=>clone(day))
-  };
-}
 
 /* ---------------- helpers ---------------- */
 function parseRestToSeconds(rest){
@@ -194,7 +149,6 @@ function getExerciseLastBest(exName){
             date: s.date||"",
             kg,
             reps: isFinite(reps)?reps:null,
-            rir: st.rir?String(st.rir):"",
             ts: s.ts || 0
           };
           break;
@@ -211,7 +165,7 @@ function getExerciseLastBest(exName){
 function fmtHistoryLine(h){
   const l = h?.last;
   const lastTxt = l
-    ? `Ultima: ${l.kg.toFixed(1).replace(".0","")}kg${l.reps?` x ${l.reps}`:""}${l.rir?` (RIR ${l.rir})`:""} • ${l.date}`
+    ? `Ultima: ${l.kg.toFixed(1).replace(".0","")}kg${l.reps?` x ${l.reps}`:""} • ${l.date}`
     : "";
   const bestTxt = (h?.bestKg!==null && h?.bestKg!==undefined) ? `Best: ${h.bestKg.toFixed(1).replace(".0","")}kg` : "";
   return lastTxt && bestTxt ? `${lastTxt}  |  ${bestTxt}` : (lastTxt || bestTxt);
@@ -648,7 +602,7 @@ function renderDayPreview(){
     div.innerHTML=`
       <div class="itemTop">
         <div class="itemTitle">${ex.ex}</div>
-        <div class="badge">${ex.sets} • ${ex.repMin}-${ex.repMax} • RIR ${ex.rir}</div>
+        <div class="badge">${ex.sets} • ${ex.repMin}-${ex.repMax} • 
       </div>
       <div class="muted small">Recupero: ${ex.rest}</div>`;
     box.appendChild(div);
@@ -712,8 +666,8 @@ function startSession(dayId){
     items:day.exercises.map(ex=>({
       ex:ex.ex,
       unit:ex.unit||"reps",
-      target:{sets:ex.sets,repMin:ex.repMin,repMax:ex.repMax,rir:ex.rir,rest:ex.rest},
-      sets:Array.from({length:ex.sets},()=>({kg:"",reps:"",rir:""}))
+      target:{sets:ex.sets,repMin:ex.repMin,repMax:ex.repMax,rest:ex.rest},
+      sets:Array.from({length:ex.sets},()=>({kg:"",reps:""}))
     })),
     closed:false
   };
@@ -767,13 +721,10 @@ function renderSingleSet(){
           <span>Reps</span>
           <input inputmode="numeric" id="inReps" value="${st.reps}">
         </label>
-        <label class="field">
-          <span>RIR</span>
-          <input inputmode="numeric" id="inRir" value="${st.rir}">
-        </label>
+
       </div>
 
-      <div class="muted small">Scheda: ${it.target.repMin}-${it.target.repMax} reps • RIR ${it.target.rir}</div>
+      <div class="muted small">Scheda: ${it.target.repMin}-${it.target.repMax} reps • </div>
       <div class="muted small">${s.closed ? "Nota: la sessione è segnata come chiusa, ma puoi modificarla comunque." : ""}</div>
     </div>
   `;
@@ -787,7 +738,6 @@ function renderSingleSet(){
 
   $("inKg")?.addEventListener("input",(e)=>{ st.kg=e.target.value; saveState(); });
   $("inReps")?.addEventListener("input",(e)=>{ st.reps=e.target.value; saveState(); });
-  $("inRir")?.addEventListener("input",(e)=>{ st.rir=e.target.value; saveState(); });
 }
 
 function renderSession(){
@@ -808,7 +758,7 @@ function renderSession(){
   const sugShort = sug ? `Suggerito: ${sug.kgSuggested.toFixed(1).replace(".0","")}kg` : "";
 
   $("exTarget").textContent =
-    `Target: ${t.sets}x ${t.repMin}-${t.repMax} • RIR ${t.rir} • Rec ${t.rest}` +
+    `Target: ${t.sets}x ${t.repMin}-${t.repMax} • Rec ${t.rest}` +
     (histLine ? `  —  ${histLine}` : "") +
     (sugShort ? `  —  ${sugShort}` : "");
 
@@ -1021,7 +971,7 @@ function renderPlanExercisesList(){
     div.innerHTML = `
       <div class="itemTop">
         <div class="itemTitle">${idx+1}. ${ex.ex}</div>
-        <div class="badge">${ex.sets}x ${ex.repMin}-${ex.repMax} • RIR ${ex.rir} • ${ex.rest}</div>
+        <div class="badge">${ex.sets}x ${ex.repMin}-${ex.repMax} • ${ex.rest}</div>
       </div>
       <div class="miniActions">
         <button class="iconBtn" data-peex-up="${idx}">↑</button>
@@ -1175,11 +1125,10 @@ $("btnAddExercise")?.addEventListener("click", ()=>{
   const sets = Number($("exSetsIn").value||0);
   const repMin = Number($("exRepMinIn").value||0);
   const repMax = Number($("exRepMaxIn").value||0);
-  const rir = $("exRirIn").value.trim() || "1-2";
   const rest = $("exRestIn").value.trim() || "90";
   if(!(sets>0 && repMin>0 && repMax>0)){ toast("Controlla serie e reps"); return; }
 
-  day.exercises.push({ ex, sets, repMin, repMax, rir, rest });
+  day.exercises.push({ ex, sets, repMin, repMax, rest });
   saveState();
   $("exNameIn").value="";
   renderPlanExercisesList();
