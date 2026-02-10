@@ -251,7 +251,7 @@ body.session-open .wrap{
   overflow:auto;
   padding:0 14px 14px;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 150px; /* spazio per barra fixed */
+  padding-bottom: 150px;
 }
 
 .sessionNav{
@@ -328,7 +328,6 @@ body.session-open .wrap{
 .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
 
 /* ===== PATCH UI: Librerie Schede/Diete (azioni) ===== */
-
 .miniActions{
   display:flex;
   gap:8px;
@@ -341,9 +340,5 @@ body.session-open .wrap{
 .btn.file input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
 
 /* ===== iOS: evita zoom automatico su input ===== */
-input, select, textarea, button {
-  font-size: 16px;
-}
-
-/* opzionale: mantiene label piccole */
+input, select, textarea, button { font-size: 16px; }
 .field span { font-size: 12px; }
