@@ -10,7 +10,7 @@
 */
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/BET-STATS/sw.js").catch(() => {});
+  navigator.serviceWorker.register("/FIT-P/sw.js").catch(() => {});
 }
 
 const $ = (id) => document.getElementById(id);
